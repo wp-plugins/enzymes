@@ -4,7 +4,7 @@ Donate link: http://noteslog.com/
 Tags: custom fields
 Requires at least: 1.2
 Tested up to: 2.1
-Stable tag: trunk
+Stable tag: 1.2
 
 Enzymes makes it extremely easy to move (and execute !?) custom fields around in your WordPress blog.
 
