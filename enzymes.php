@@ -1,11 +1,11 @@
 <?php
 /*
 Plugin Name: Enzymes
-Plugin URI: http://mondotondo.com/aercolino/noteslog/?cat=9
-Description: The Enzymes WordPress plugin let's you EFFORTLESSLY metabolize (transclude / execute) custom fields inside a post, a page, and everywhere in a theme. You need Enzymes.
+Plugin URI: http://noteslog.com/enzymes/
+Description: Transclude custom fields values wherever you need
 Author: Andrea Ercolino
-Version: 1.2
-Author URI: http://mondotondo.com/aercolino/noteslog
+Version: 1.3
+Author URI: http://noteslog.com
 */
 
 class Enzymes {
@@ -204,19 +204,6 @@ class Enzymes {
 			return $this->content.$after;
 		}
 	}
-
-	// these functions only send a simple log to my server on plugin activation / deactivation
-	function makeURL( $mode ) {
-		return 'http://mondotondo.com/aercolino/count/enzymes/1.1/'.$mode.'/empty.txt';
-	}
-	function activate() {
-		$fh = fopen( $this->makeURL( 'activate' ), 'r' );
-		if( false !== $fh ) fclose( $fh );
-	}
-	function deactivate() {
-		$fh = fopen( $this->makeURL( 'deactivate' ), 'r' );
-		if( false !== $fh ) fclose( $fh );
-	}
 }
 
 $enzymes = new Enzymes();
@@ -232,6 +219,4 @@ function metabolize( $content, $post = '' ) {
 	echo $enzymes->metabolism( $content, $post );
 }
 
-add_action( 'activate_enzymes/enzymes-1.2.php',   array( &$enzymes, 'activate' ) );
-add_action( 'deactivate_enzymes/enzymes-1.2.php', array( &$enzymes, 'deactivate' ) );
 ?>
