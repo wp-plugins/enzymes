@@ -4,7 +4,7 @@ Donate link: http://noteslog.com/
 Tags: custom fields, enzymes, transclusion, the_content, filter
 Requires at least: 1.2
 Tested up to: 2.3
-Stable tag: 1.2
+Stable tag: 1.3
 
 Easily transclude custom fields values wherever you need
 
