@@ -1,0 +1,1 @@
+<?php echo htmlentities( $this->enzyme ); ?>

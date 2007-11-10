@@ -6,14 +6,16 @@ Requires at least: 1.2
 Tested up to: 2.3
 Stable tag: 1.3
 
-Easily transclude custom fields values wherever you need
+Retrieve properties and custom fields of posts, pages, and authors, right into the visual editor of posts and pages, and everywhere else.
 
 
 == Description ==
 
-No matter where your custom fields are, you can transclude (copy) their values into any location inside your posts or pages; all by means of a clean syntax that is compatible with the visual editor.
+Let's say that you have a post with the slug <u>postcard-from-Barcelona</u> and it's got a custom field with the key <u>report</u> and the value <u>warm and sunny</u>. In a new post, you could write:
+<blockquote>Thanks to the {[ @postcard-from-barcelona.report ]} weather we enjoyed a nice stay.</blockquote>
+and your readers will get:
+<blockquote>Thanks to the warm and sunny weather we enjoyed a nice stay.</blockquote>
 
-Additional features: templates, execution, argument passing, chaining, and external use.
 
 [Enzymes Manual](http://noteslog.com/enzymes/ "a full manual with examples")
 

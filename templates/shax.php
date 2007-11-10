@@ -1,0 +1,1 @@
+<blockquote style="color:red"><?php echo $this->enzyme ?></blockquote>
