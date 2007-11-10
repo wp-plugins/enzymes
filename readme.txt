@@ -1,10 +1,10 @@
 === Enzymes ===
 Contributors: aercolino
 Donate link: http://noteslog.com/
-Tags: custom fields, enzymes, transclusion, the_content, filter
+Tags: enzymes, custom fields, properties, transclusion, inclusion, evaluation, content, retrieve, post, page, author
 Requires at least: 1.2
 Tested up to: 2.3
-Stable tag: 1.3
+Stable tag: 2.0
 
 Retrieve properties and custom fields of posts, pages, and authors, right into the visual editor of posts and pages, and everywhere else.
 
