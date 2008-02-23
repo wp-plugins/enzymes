@@ -21,15 +21,19 @@ __Simple evaluation__
 using Enzymes gets converted into
 <blockquote>The weather in Barcelona was always <span style="background-color:yellow;">warm and sunny (Feb, 2008)</span> and we stayed many hours outdoor.</blockquote>
 
-__Preconditions__
-<ul>
-<li>you have installed Enzymes</li>
-<li>you have a post with the slug <u>post-from-barcelona</u></li>
-<li>in that post you have a custom field with the key <u>report</u> and the value `warm and sunny (Feb, 2008)`</li>
-<li>in the post with the id 1 you have a custom field with the key <u>marker</u> and the value `return '<span style="background-color:' . $this->substrate . ';">' . $this->pathway . '</span>';`</li>
-</ul>
 
-## [Enzymes Manual](http://noteslog.com/enzymes/ "a full manual with examples")
+__Preconditions__
+
+you have installed Enzymes
+
+you have a post with the slug <u>post-from-barcelona</u>
+
+in that post you have a custom field with the key <u>report</u> and the value `warm and sunny (Feb, 2008)`
+
+in the post with the id 1 you have a custom field with the key <u>marker</u> and the value `return '<span style="background-color:' . $this->substrate . ';">' . $this->pathway . '</span>';`
+
+
+<h3>[Enzymes Manual](http://noteslog.com/enzymes/ "a full manual with examples")</h3>
 
 
 == Installation ==
