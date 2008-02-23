@@ -4,7 +4,7 @@ Plugin Name: Enzymes
 Plugin URI: http://noteslog.com/enzymes/
 Description: Retrieve properties and custom fields of posts, pages, and authors, right into the visual editor of posts and pages, and everywhere else.
 Author: Andrea Ercolino
-Version: 2.0
+Version: 2.1
 Author URI: http://noteslog.com
 */
 
@@ -37,6 +37,7 @@ class Enzymes {
 		$this->e['key']       = '(?:'.$this->e['quoted'].'|'.$this->e['oneword'].')';
 		$this->e['block']     = '(?P<id>'.$this->e['id'].')(?P<glue>'.$this->e['glue'].')(?P<key>'.$this->e['key'].')';
 		$this->e['substrate'] = '(?P<sub_id>'.$this->e['id'].')(?P<sub_glue>'.$this->e['glue'].')(?P<sub_key>'.$this->e['key'].')';
+		$this->e['substrate'].= '|(?P<sub_value>'.$this->e['quoted'].')';
 		$this->e['sub_block'] = '(?P<sub_block>\((?:'.$this->e['substrate'].')?\))';
 		$this->e['enzyme']    = '(?:'.$this->e['block'].$this->e['sub_block'].'?'.$this->e['template'].'?)';
 
@@ -293,7 +294,9 @@ class Enzymes {
 		}
 		else { 
 			// execution
-			$this->substrate = $this->item( $matches['sub_id'], $matches['sub_glue'], $matches['sub_key'] );
+			$this->substrate = '' == $matches['sub_value'] ? 
+				  $this->item( $matches['sub_id'], $matches['sub_glue'], $matches['sub_key'] )
+				: $this->unquote( $matches['sub_value'] );
 			$this->enzyme = $this->item( $matches['id'], $matches['glue'], $matches['key'] );
 			$this->merging = '';
 			$this->do_evaluation();
