@@ -13,12 +13,12 @@ Retrieve properties and custom fields of posts, pages, and authors, right into t
 
 __Simple transclusion__
 <blockquote>The weather in Barcelona was always {[ @post-from-barcelona.report ]} and we stayed many hours outdoor.</blockquote>
-gets converted into
+becomes
 <blockquote>The weather in Barcelona was always warm and sunny (Feb, 2008) and we stayed many hours outdoor.</blockquote>
 
 __Simple evaluation__
 <blockquote>The weather in Barcelona was always {[ @post-from-barcelona.report | 1.marker( =yellow= ) ]} and we stayed many hours outdoor.</blockquote>
-using Enzymes gets converted into
+becomes
 <blockquote>The weather in Barcelona was always <span style="background-color:yellow;">warm and sunny (Feb, 2008)</span> and we stayed many hours outdoor.</blockquote>
 
 
