@@ -4,12 +4,12 @@ Plugin Name: Enzymes
 Plugin URI: http://noteslog.com/enzymes/
 Description: Retrieve properties and custom fields of posts, pages, and authors, right into the visual editor of posts and pages, and everywhere else.
 Author: Andrea Ercolino
-Version: 2.1
+Version: 2.2
 Author URI: http://noteslog.com
 */
 
 class Enzymes {
-	var $templates = 'wp-content/plugins/enzymes/templates/';
+	var $templates_path = 'wp-content/plugins/enzymes/templates/';
 	var $content   = '';  // the content of the post, modified by Enzymes
 	var $post      = '';  // the post which the content belongs to
 	var $pathway   = '';  // the output of the pathway
@@ -35,7 +35,8 @@ class Enzymes {
 		$this->e['id2']       = '(?:~\w+)';
 		$this->e['id']        = '(?:'.$this->e['id1'].$this->e['id2'].'?|'.$this->e['id1'].'?'.$this->e['id2'].'|)'; //'\d*';
 		$this->e['key']       = '(?:'.$this->e['quoted'].'|'.$this->e['oneword'].')';
-		$this->e['block']     = '(?P<id>'.$this->e['id'].')(?P<glue>'.$this->e['glue'].')(?P<key>'.$this->e['key'].')';
+		$this->e['block']     = '(?:(?P<id>'.$this->e['id'].')(?P<glue>'.$this->e['glue'].')(?P<key>'.$this->e['key'].')';
+		$this->e['block']    .= '|(?P<value>'.$this->e['quoted'].'))';
 		$this->e['substrate'] = '(?P<sub_id>'.$this->e['id'].')(?P<sub_glue>'.$this->e['glue'].')(?P<sub_key>'.$this->e['key'].')';
 		$this->e['substrate'].= '|(?P<sub_value>'.$this->e['quoted'].')';
 		$this->e['sub_block'] = '(?P<sub_block>\((?:'.$this->e['substrate'].')?\))';
@@ -114,7 +115,7 @@ class Enzymes {
 
 	function do_inclusion() {
 		if( '' != $this->matches['template'] ) {
-			$file_path = ABSPATH . $this->templates . $this->matches['template'];
+			$file_path = ABSPATH . $this->templates_path . $this->matches['template'];
 			if( file_exists( $file_path ) ) {
 				ob_start();
 				include( $file_path ); // include the requested template in the local scope
@@ -288,7 +289,9 @@ class Enzymes {
 		if( '' == $matches['sub_block'] ) { 
 			// transclusion
 			$this->substrate = '';
-			$this->enzyme = $this->item( $matches['id'], $matches['glue'], $matches['key'] );
+			$this->enzyme = '' == $matches['value'] ? 
+				  $this->item( $matches['id'], $matches['glue'], $matches['key'] )
+				: $this->unquote( $matches['value'] );
 			$this->merging = 'append';
 			$this->build_pathway();
 		}
