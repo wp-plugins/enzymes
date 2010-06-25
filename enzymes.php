@@ -4,11 +4,12 @@ Plugin Name: Enzymes
 Plugin URI: http://noteslog.com/enzymes/
 Description: Retrieve properties and custom fields of posts, pages, and authors, right into the visual editor of posts and pages, and everywhere else.
 Author: Andrea Ercolino
-Version: 2.2
+Version: 2.3
 Author URI: http://noteslog.com
 */
 
-class Enzymes {
+class Enzymes 
+{
 	var $templates_path = 'wp-content/plugins/enzymes/templates/';
 	var $content   = '';  // the content of the post, modified by Enzymes
 	var $post      = '';  // the post which the content belongs to
@@ -96,8 +97,10 @@ class Enzymes {
 		);
 	}
 
-	function apply_merging() {
-		switch( $this->merging ) {
+	function apply_merging() 
+    {
+		switch( $this->merging ) 
+        {
 			case '':
 				break;
 			case 'append':
@@ -107,16 +110,20 @@ class Enzymes {
 				$this->enzyme = $this->enzyme . $this->pathway;
 				break;
 			default:
-				if( is_callable( $this->merging ) ) {
+				if( is_callable( $this->merging ) ) 
+                {
 					$this->enzyme = call_user_func( $this->merging, $this );
 				}
 		}
 	}
 
-	function do_inclusion() {
-		if( '' != $this->matches['template'] ) {
+	function do_inclusion() 
+    {
+		if( '' != $this->matches['template'] ) 
+        {
 			$file_path = ABSPATH . $this->templates_path . $this->matches['template'];
-			if( file_exists( $file_path ) ) {
+			if( file_exists( $file_path ) ) 
+            {
 				ob_start();
 				include( $file_path ); // include the requested template in the local scope
 				$this->enzyme = ob_get_contents();
@@ -125,8 +132,10 @@ class Enzymes {
 		}
 	}
 
-	function do_evaluation() {
-		if( '' != $this->enzyme ) {
+	function do_evaluation() 
+    {
+		if( '' != $this->enzyme ) 
+        {
 			ob_start();
 			$this->enzyme = eval( $this->enzyme ); // evaluate the requested block in the local scope
 			$this->pathway = ob_get_contents();
@@ -134,37 +143,47 @@ class Enzymes {
 		}
 	}
 
-	function build_pathway() {
-		if( '' != $this->matches['template'] ) {
-			if( '/' == $this->matches['tempType'] ) {
+	function build_pathway() 
+    {
+		if( '' != $this->matches['template'] ) 
+        {
+			if( '/' == $this->matches['tempType'] ) 
+            {
 				// slash template
 				$this->apply_merging();
 				$this->do_inclusion();
 			}
-			else {
+			else 
+            {
 				// backslash template
 				$this->do_inclusion();
 				$this->apply_merging();
 			}
 		}
-		else {
+		else 
+        {
 			$this->apply_merging();
 		}
 		$this->pathway = $this->enzyme;
 	}
 	
-	function elaborate( $substrate ) {
-		if( '' == $substrate ) {
+	function elaborate( $substrate ) 
+    {
+		if( '' == $substrate ) 
+        {
 			return array( '' );
 		}
 		$substrate1 = explode( "\n", $substrate );
-		foreach( $substrate1 as $i => $subject ) {
+		foreach( $substrate1 as $i => $subject ) 
+        {
 			if( '' == $subject ) continue;
-			if( preg_match( "/^(.+?)=>(.*(?:{$this->e['glue']}).+)$/", $subject, $sub ) ) {
+			if( preg_match( "/^(.+?)=>(.*(?:{$this->e['glue']}).+)$/", $subject, $sub ) ) 
+            {
 				$key = trim( $sub[1] );
 				$subject = trim( $sub[2] );
 			}
-			else {
+			else 
+            {
 				$key = $i;
 			}
 			$enzymes = new Enzymes(); 
@@ -173,14 +192,18 @@ class Enzymes {
 		return $substrate2;
 	}
 
-	function get_id( $id ) {
-		if( intval( $id ) ) {
+	function get_id( $id ) 
+    {
+		if( intval( $id ) ) 
+        {
 			$post_id = $id;
 		}
-		elseif( '' == $id ) {
+		elseif( '' == $id ) 
+        {
 			$post_id = $this->post->ID;
 		}
-		else {
+		else 
+        {
 			global $wpdb;
 			$name = substr( $id, 1 );
 			$post_id = $wpdb->get_var("SELECT ID FROM $wpdb->posts WHERE post_name = '$name'");
@@ -188,30 +211,50 @@ class Enzymes {
 		return $post_id;
 	}
 	
-	function get_userdata( $user_id, $key ) {
+	function get_userdata( $user_id, $key ) 
+    {
 		//the get_userdata function in the WP API retrieves custom fields too, this one does not
 		global $wpdb;
 		return $wpdb->get_var("SELECT $key FROM $wpdb->users WHERE ID = $user_id");
 	}
 	
-	function unquote( $key ) {
-		if( preg_match( '/'.$this->e['quoted'].'/', $key ) ) {
+	function unquote( $key ) 
+    {
+		if( preg_match( '/'.$this->e['quoted'].'/', $key ) ) 
+        {
 			$key = substr( $key, 1, -1 );                // unwrap from quotes
 			$key = preg_replace( '/\\\\=/', '=', $key ); // unescape escaped quotes
 		}
 		return $key;
 	}
 	
-	function post_value( $id, $glue, $key ) {
+	function post_value( $id, $glue, $key ) 
+    {
 		$value = '';
-		switch( $glue ) {
+		switch( $glue ) 
+        {
 			case '.':
 				$key = $this->unquote( $key );
-				$value = get_post_meta( $id, $key, true );
+				//$value = get_post_meta( $id, $key, true );
+                $value = get_post_meta( $id, $key, false );
+                $count = count($value);
+                if ($count > 1)
+                {
+                    $value = serialize($value);
+                }
+                elseif ($count == 1)
+                {
+                    $value = $value[0];
+                }
+                else
+                {
+                    $value = '';
+                }
 			break;
 			
 			case ':':
-				switch( $key ) {
+				switch( $key ) 
+                {
 					case 'id':
 						$value = $id;
 						break;
@@ -219,7 +262,8 @@ class Enzymes {
 					default:
 						$post = get_post( $id );
 						$key  = $this->post_key[$key];
-						if( isset( $key ) && ( '' !== $key ) ) {
+						if( isset( $key ) && ( '' !== $key ) ) 
+                        {
 							$value = $post->$key;
 						}
 				}
@@ -228,24 +272,28 @@ class Enzymes {
 		return $value;
 	}
 	
-	function author_value( $id, $glue, $key ) {
+	function author_value( $id, $glue, $key ) 
+    {
 		$post = get_post( $id );
 		$author_id = $post->post_author;
-		switch( $glue ) {
+		switch( $glue ) 
+        {
 			case '.':
 				$key = $this->unquote( $key );
-				$value = get_usermeta( $author_id, $key );
+				$value = get_user_meta( $author_id, $key, true );
 			break;
 			
 			case ':':
-				switch( $key ) {
+				switch( $key ) 
+                {
 					case 'id':
 						$value = $author_id;
 					break;
 
 					default:
 						$key = $this->user_key[$key];
-						if( isset( $key ) && ( '' !== $key ) ) {
+						if( isset( $key ) && ( '' !== $key ) ) 
+                        {
 							$value = $this->get_userdata( $author_id, $key );
 						}						
 				}
@@ -254,22 +302,27 @@ class Enzymes {
 		return $value;
 	}
 	
-	function item( $id, $glue, $key = null ) {
-		if( is_null( $key ) ) {
+	function item( $id, $glue, $key = null ) 
+    {
+		if( is_null( $key ) ) 
+        {
 			$key = $glue;
 			$glue = '.';
 		}
-		if( '' == $key ) {
+		if( '' == $key ) 
+        {
 			return '';
 		}
 		$entity = 'post'; 
-		if( preg_match( '/(@[\w\-]+)?~(\w+)/', $id, $sub ) ) {
+		if( preg_match( '/(@[\w\-]+)?~(\w+)/', $id, $sub ) ) 
+        {
 			$id = $sub[1];
 			$entity = $sub[2]; 
 		}
 		$id = $this->get_id( $id );
 		
-		switch( $entity ) {
+		switch( $entity ) 
+        {
 			case 'post':
 				$value = $this->post_value( $id, $glue, $key );
 			break;
@@ -284,21 +337,23 @@ class Enzymes {
 		return $value;
 	}
 
-	function catalyze( $matches ) {
+	function catalyze( $matches ) 
+    {
 		$this->matches = $matches;
-		if( '' == $matches['sub_block'] ) { 
+		if( '' == $matches['sub_block'] ) 
+        { 
 			// transclusion
 			$this->substrate = '';
-			$this->enzyme = '' == $matches['value'] ? 
-				  $this->item( $matches['id'], $matches['glue'], $matches['key'] )
+			$this->enzyme = '' == $matches['value'] 
+                ? $this->item( $matches['id'], $matches['glue'], $matches['key'] )
 				: $this->unquote( $matches['value'] );
 			$this->merging = 'append';
 			$this->build_pathway();
 		}
 		else { 
 			// execution
-			$this->substrate = '' == $matches['sub_value'] ? 
-				  $this->item( $matches['sub_id'], $matches['sub_glue'], $matches['sub_key'] )
+			$this->substrate = '' == $matches['sub_value'] 
+                ? $this->item( $matches['sub_id'], $matches['sub_glue'], $matches['sub_key'] )
 				: $this->unquote( $matches['sub_value'] );
 			$this->enzyme = $this->item( $matches['id'], $matches['glue'], $matches['key'] );
 			$this->merging = '';
@@ -307,7 +362,8 @@ class Enzymes {
 		}
 	}
 
-	function cb_strip_blanks( $matches ) {
+	function cb_strip_blanks( $matches ) 
+    {
 		list( $all, $before, $quoted, $after ) = $matches;
 		$outside = $quoted ? $before : $after;
 		//for some reason IE introduces C2 (hex) chars when writing a post
@@ -315,48 +371,56 @@ class Enzymes {
 		return $clean;
 	}
 
-	function metabolism( $content, $post = '' ) {
-		if( ! preg_match( '/'.$this->e['content'].'/s', $content, $matchesOut ) ) return $content;
-		else {
-			$this->content = '';
-			if( ! is_object( $post ) ) {
-				global $post;
-			}
-			$this->post = $post;
-			do {
-				if( '{' == substr( $matchesOut['before'], -1 ) ) { //not to be processed
-					$result = '['.$matchesOut['statement'].']}';
-				}
-				else {
-					$sttmnt = $matchesOut['statement'];
-					// erase tags
-					$sttmnt = strip_tags( $sttmnt );
-					// erase blanks (except inside quoted strings)
-					$sttmnt = preg_replace_callback( 
-						'/(.*?)('.$this->e['quoted'].')|(.+)/s', array( $this, 'cb_strip_blanks' ), $sttmnt 
-					);
-					// erase comments
-					$sttmnt = preg_replace( '/'.$this->e['comment'].'/', '', $sttmnt );
+	function metabolism( $content, $post = '' ) 
+    {
+		if( ! preg_match( '/'.$this->e['content'].'/s', $content, $matchesOut ) ) 
+        {
+            return $content;
+        }
+        $this->content = '';
+        if( ! is_object( $post ) ) {
+            global $post;
+        }
+        $this->post = $post;
+        do 
+        {
+            if( '{' == substr( $matchesOut['before'], -1 ) ) 
+            { //not to be processed
+                $result = '['.$matchesOut['statement'].']}';
+            }
+            else 
+            {
+                $sttmnt = $matchesOut['statement'];
+                // erase tags
+                $sttmnt = strip_tags( $sttmnt );
+                // erase blanks (except inside quoted strings)
+                $sttmnt = preg_replace_callback( 
+                    '/(.*?)('.$this->e['quoted'].')|(.+)/s', array( $this, 'cb_strip_blanks' ), $sttmnt 
+                );
+                // erase comments
+                $sttmnt = preg_replace( '/'.$this->e['comment'].'/', '', $sttmnt );
 
-					if( ! preg_match( '/'.$this->e['pathway2'].'/', '|'.$sttmnt ) ) { //not a pathway
-						$result = '{['.$matchesOut['statement'].']}';
-					}
-					else { // process statement
-						$this->pathway = '';
-						$matchesIn['rest'] = $sttmnt;
-						while( preg_match( '/'.$this->e['pathway1'].'/', $matchesIn['rest'], $matchesIn ) ) {
-							$this->catalyze( $matchesIn );
-						}
-						$result = $this->pathway;
-					}
-				}
-				$this->content .= $matchesOut['before'].$result;
-				$after = $matchesOut['after']; // save tail, if next match fails
-			} 
-			while( preg_match( '/'.$this->e['content'].'/s', $matchesOut['after'], $matchesOut ) );
+                if( ! preg_match( '/'.$this->e['pathway2'].'/', '|'.$sttmnt ) ) 
+                { //not a pathway
+                    $result = '{['.$matchesOut['statement'].']}';
+                }
+                else 
+                { // process statement
+                    $this->pathway = '';
+                    $matchesIn['rest'] = $sttmnt;
+                    while( preg_match( '/'.$this->e['pathway1'].'/', $matchesIn['rest'], $matchesIn ) ) 
+                    {
+                        $this->catalyze( $matchesIn );
+                    }
+                    $result = $this->pathway;
+                }
+            }
+            $this->content .= $matchesOut['before'].$result;
+            $after = $matchesOut['after']; // save tail, if next match fails
+        } 
+        while( preg_match( '/'.$this->e['content'].'/s', $matchesOut['after'], $matchesOut ) );
 
-			return $this->content.$after;
-		}
+        return $this->content.$after;
 	}
 }
 
@@ -368,7 +432,8 @@ add_filter( 'the_excerpt',     array( &$enzymes, 'metabolism' ), 10, 2 );
 add_filter( 'the_excerpt_rss', array( &$enzymes, 'metabolism' ), 10, 2 );
 add_filter( 'the_content',     array( &$enzymes, 'metabolism' ), 10, 2 );
 
-function metabolize( $content, $post = '' ) {
+function metabolize( $content, $post = '' ) 
+{
 	global $enzymes;
 	echo $enzymes->metabolism( $content, $post );
 }
