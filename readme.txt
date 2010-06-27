@@ -19,8 +19,8 @@ You can also format and modify any transcluded content on the fly, using reusabl
 Enzymes makes it very easy to re-use parts of your content around your blog, just by referencing it.
 
 Here are two little samples, whose preconditions are these:
-*   you have a post with the slug `postcard-from-barcelona`, with a custom field with the key `report` and the value `warm and sunny (Feb, 2008)`
-*   in the post with the id 1 you have a custom field with the key <u>marker</u> and the value `return '<span style="background-color:' . $this->substrate . ';">' . $this->pathway . '</span>';`
+* you have a post with the slug `postcard-from-barcelona`, with a custom field with the key `report` and the value `warm and sunny (Feb, 2008)`
+* in the post with the id 1 you have a custom field with the key <u>marker</u> and the value `return '<span style="background-color:' . $this->substrate . ';">' . $this->pathway . '</span>';`
 
 
 = Simple transclusion: a custom field of a post is made appear in another post =
