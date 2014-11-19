@@ -1,6 +1,6 @@
 <?php
 
-require_once 'Regex.php';
+require_once 'Ando/Regex.php';
 
 class Enzymes
 {
@@ -12,7 +12,6 @@ class Enzymes
 	protected $post      = '';  // the post which the content belongs to
 	protected $substrate = '';  // a custom field passed as input to an enzyme
 	protected $merging   = '';  // the function used to merge the pathway and the enzyme
-	protected $e;               // array of patterns of regular expressions
 	protected $matches;         // array of matches for the current enzyme
 
 	protected $post_key = null;
@@ -20,76 +19,155 @@ class Enzymes
 
 	public function __construct() {
 		$this->templates_path = WP_CONTENT_DIR . '/plugins/enzymes/templates/';
-		$this->e = array();
 
-		$this->e['oneword']   = '(?:(?:\w|-|~)+)';
-		$this->e['glue']      = '(?:\.|\:)';
-		$this->e['quoted']    = '(?:=[^=\\\\]*(?:\\\\.[^=\\\\]*)*=)';
-		$this->e['template']  = '(?:(?P<tempType>\/|\\\\)(?P<template>(?:[^\|])+))';
-		$this->e['comment']   = '(?P<comment>\/\*.*?\*\/)';
+//		$this->e = array();
 
-		$this->e['id1']       = '(?:\d+|@(?:\w|-)+)';
-		$this->e['id2']       = '(?:~\w+)';
-		$this->e['id']        = '(?:'.$this->e['id1'].$this->e['id2'].'?|'.$this->e['id1'].'?'.$this->e['id2'].'|)'; //'\d*';
-		$this->e['key']       = '(?:'.$this->e['quoted'].'|'.$this->e['oneword'].')';
-		$this->e['block']     = '(?:(?P<id>'.$this->e['id'].')(?P<glue>'.$this->e['glue'].')(?P<key>'.$this->e['key'].')';
-		$this->e['block']    .= '|(?P<value>'.$this->e['quoted'].'))';
-		$this->e['substrate'] = '(?P<sub_id>'.$this->e['id'].')(?P<sub_glue>'.$this->e['glue'].')(?P<sub_key>'.$this->e['key'].')';
-		$this->e['substrate'].= '|(?P<sub_value>'.$this->e['quoted'].')';
-		$this->e['sub_block'] = '(?P<sub_block>\((?:'.$this->e['substrate'].')?\))';
-		$this->e['enzyme']    = '(?:'.$this->e['block'].$this->e['sub_block'].'?'.$this->e['template'].'?)';
+		// oneword: '(?:(?:\w|-|~)+)';
+		$oneword = Ando_Regex::def('(?:(?:\w|-|~)+)');
 
+		// glue: '(?:\.|\:)';
+		$glue = Ando_Regex::def('(?:\.|\:)');
+		
+		// quoted: '(?:=[^=\\\\]*(?:\\\\.[^=\\\\]*)*=)';
+		$quoted = Ando_Regex::def('(?:=[^=\\\\]*(?:\\\\.[^=\\\\]*)*=)');
+		
+		// template: '(?:(?<tempType>\/|\\\\)(?<template>(?:[^\|])+))';
+		$template = Ando_Regex::def('(?:(?<tempType>\/|\\\\)(?<template>(?:[^\|])+))');
+		
+		// comment: '(?<comment>\/\*.*?\*\/)';
+		$comment = Ando_Regex::def('(?<comment>\/\*.*?\*\/)');
+
+		// id1: '(?:\d+|@(?:\w|-)+)';
+		$id1 = Ando_Regex::def('(?:\d+|@(?:\w|-)+)');
+		// id2: '(?:~\w+)';
+		$id2 = Ando_Regex::def('(?:~\w+)');
+		// id: '(?:'.$this->e['id1'].$this->e['id2'].'?|'.$this->e['id1'].'?'.$this->e['id2'].'|)'; //'\d*';
+		$id = Ando_Regex::def('(?:$id1$id2?|$id1?$id2|)')->interpolate(array(
+			'id1' => $id1,
+			'id2' => $id2,
+		));
+
+		// key: '(?:'.$this->e['quoted'].'|'.$this->e['oneword'].')';
+		$key = Ando_Regex::def('(?:$quoted|$oneword)')->interpolate(array(
+			'quoted'  => $quoted,
+			'oneword' => $oneword,
+		));
+
+		// block: '(?:(?<id>'.$this->e['id'].')(?<glue>'.$this->e['glue'].')(?<key>'.$this->e['key'].')|(?<value>'.$this->e['quoted'].'))';
+		$block = Ando_Regex::def('(?:(?<id>$id)(?<glue>$glue)(?<key>$key)|(?<value>$quoted))')->interpolate(array(
+			'id'     => $id,
+			'glue'   => $glue,
+			'key'    => $key,
+			'quoted' => $quoted,
+		));
+
+		// substrate: '(?<sub_id>'.$this->e['id'].')(?<sub_glue>'.$this->e['glue'].')(?<sub_key>'.$this->e['key'].')|(?<sub_value>'.$this->e['quoted'].')';
+		$substrate = Ando_Regex::def('(?<sub_id>$id)(?<sub_glue>$glue)(?<sub_key>$key)|(?<sub_value>$quoted)')->interpolate(array(
+			'id'     => $id,
+			'glue'   => $glue,
+			'key'    => $key,
+			'quoted' => $quoted,
+		));
+
+		// sub_block: '(?<sub_block>\((?:$substrate)?\))';
+		$sub_block = Ando_Regex::def('(?<sub_block>\((?:$substrate)?\))')->interpolate(array(
+			'substrate' => $substrate,
+		));
+
+		// enzyme: '(?:'.$this->e['block'].$this->e['sub_block'].'?$template?)';
+		$enzyme = Ando_Regex::def('(?:$block$sub_block?$template?)')->interpolate(array(
+			'block'     => $block,
+			'sub_block' => $sub_block,
+			'template'  => $template,
+		));
 		//pathway = enzyme|enzyme|...|enzyme
-		$this->e['rest']      = '(?:\|(?P<rest>.+))';
-		$this->e['pathway1']  = '^'.$this->e['enzyme'].$this->e['rest'].'?$';  //if processing pathway, match /enzyme|rest*/
-		$this->e['pathway2']  = '^(?:\|'.$this->e['enzyme'].')+$';             //if accepting  pathway, match /(|head)+/     (against |pathway)
+		// rest: '(?:\|(?<rest>.+))';
+		$rest = Ando_Regex::def('(?:\|(?<rest>.+))');
+		// pathway1: '^'.$this->e['enzyme'].$this->e['rest'].'?$';  //if processing pathway, match /enzyme|rest*/
+		$pathway1 = Ando_Regex::def('^$enzyme$rest?$')->interpolate(array(
+			'enzyme' => $enzyme,
+			'rest'   => $rest,
+		));
+		// pathway2: '^(?:\|$enzyme)+$';             //if accepting  pathway, match /(|head)+/     (against |pathway)
+		$pathway2 = Ando_Regex::def('^(?:\|$enzyme)+$')->interpolate(array(
+			'enzyme' => $enzyme,
+		));
 
-		$this->e['before']    = '(?P<before>.*?)';
-		$this->e['statement'] = '\{\[(?P<statement>.*?)\]\}';
-		$this->e['after']     = '(?P<after>.*)';
-		$this->e['content']   = '^'.$this->e['before'].$this->e['statement'].$this->e['after'].'$';
+		// before: '(?<before>.*?)';
+		$before = Ando_Regex::def('(?<before>.*?)');
+		// statement: '\{\[(?<statement>.*?)\]\}';
+		$statement = Ando_Regex::def('\{\[(?<statement>.*?)\]\}');
+		// after: '(?<after>.*)';
+		$after = Ando_Regex::def('(?<after>.*)');
+		// content: '^'.$this->e['before'].$this->e['statement'].$this->e['after'].'$';
+		$content = Ando_Regex::def('^$before$statement$after$', '@@s')->interpolate(array(
+			'before'    => $before,
+			'statement' => $statement,
+			'after'     => $after,
+		));
 
+		$each = Ando_Regex::def('/^(.+?)=>(.*(?:$glue).+)$/')->interpolate(array(
+			'glue' => $glue,
+		));
+		$maybe_quoted = Ando_Regex::def('(.*?)($quoted)|(.+)', '@@s')->interpolate(array(
+			'quoted' => $quoted,
+		));
+		$escaped_quote = Ando_Regex::def('\\\\=');
+		$maybe_id = Ando_Regex::def('(@[\w\-]+)?~(\w+)');
+		$blank = Ando_Regex::def('(?:\s|\xc2)+');
+
+
+		$this->e_maybe_id = $maybe_id;
+		$this->e_each = $each;
+		$this->e_quoted = $quoted;
+		$this->e_content = $content;
+		$this->e_maybe_quoted = $maybe_quoted;
+		$this->e_escaped_quote = $escaped_quote;
+		$this->e_blank = $blank;
+		$this->e_comment = $comment;
+		$this->e_pathway1 = $pathway1;
+		$this->e_pathway2 = $pathway2;
 
 		$this->post_key = array(
-			'id'               => 'ID'
+			'id'               => 'ID',
 
-		, 'name'             => 'post_name'
-		, 'password'         => 'post_password'
-		, 'date'             => 'post_date'
-		, 'date_gmt'         => 'post_date_gmt'
-		, 'modified'         => 'post_modified'
-		, 'modified_gmt'     => 'post_modified_gmt'
-		, 'content'          => 'post_content'
-		, 'content_filtered' => 'post_content_filtered'
-		, 'title'            => 'post_title'
-		, 'excerpt'          => 'post_excerpt'
-		, 'status'           => 'post_status'
-		, 'type'             => 'post_type'
-		, 'parent'           => 'post_parent'
-		, 'mime_type'        => 'post_mime_type'
+			'name'             => 'post_name',
+			'password'         => 'post_password',
+			'date'             => 'post_date',
+			'date_gmt'         => 'post_date_gmt',
+			'modified'         => 'post_modified',
+			'modified_gmt'     => 'post_modified_gmt',
+			'content'          => 'post_content',
+			'content_filtered' => 'post_content_filtered',
+			'title'            => 'post_title',
+			'excerpt'          => 'post_excerpt',
+			'status'           => 'post_status',
+			'type'             => 'post_type',
+			'parent'           => 'post_parent',
+			'mime_type'        => 'post_mime_type',
 
-		, 'comment_status'   => 'comment_status'
-		, 'comment_count'    => 'comment_count'
-		, 'ping_status'      => 'ping_status'
-		, 'menu_order'       => 'menu_order'
-		, 'to_ping'          => 'to_ping'
-		, 'pinged'           => 'pinged'
-		, 'guid'             => 'guid'
+			'comment_status'   => 'comment_status',
+			'comment_count'    => 'comment_count',
+			'ping_status'      => 'ping_status',
+			'menu_order'       => 'menu_order',
+			'to_ping'          => 'to_ping',
+			'pinged'           => 'pinged',
+			'guid'             => 'guid',
 		);
 
 		$this->user_key = array(
-			'id'               => 'ID'
+			'id'               => 'ID',
 
-		, 'login'            => 'user_login'
-		, 'pass'             => 'user_pass'
-		, 'nicename'         => 'user_nicename'
-		, 'email'            => 'user_email'
-		, 'url'              => 'user_url'
-		, 'registered'       => 'user_registered'
-		, 'activation_key'   => 'user_activation_key'
-		, 'status'           => 'user_status'
+			'login'            => 'user_login',
+			'pass'             => 'user_pass',
+			'nicename'         => 'user_nicename',
+			'email'            => 'user_email',
+			'url'              => 'user_url',
+			'registered'       => 'user_registered',
+			'activation_key'   => 'user_activation_key',
+			'status'           => 'user_status',
 
-		, 'display_name'     => 'display_name'
+			'display_name'     => 'display_name',
 		);
 	}
 
@@ -173,7 +251,7 @@ class Enzymes
 		foreach( $substrate1 as $i => $subject )
 		{
 			if( '' == $subject ) continue;
-			if( preg_match( "/^(.+?)=>(.*(?:{$this->e['glue']}).+)$/", $subject, $sub ) )
+			if( preg_match( $this->e_each, $subject, $sub ) )
 			{
 				$key = trim( $sub[1] );
 				$subject = trim( $sub[2] );
@@ -216,10 +294,10 @@ class Enzymes
 
 	protected function unquote( $key )
 	{
-		if( preg_match( '/'.$this->e['quoted'].'/', $key ) )
+		if( preg_match( $this->e_quoted, $key ) )
 		{
-			$key = substr( $key, 1, -1 );                // unwrap from quotes
-			$key = preg_replace( '/\\\\=/', '=', $key ); // unescape escaped quotes
+			$key = substr( $key, 1, -1 );  // unwrap from quotes
+			$key = preg_replace( $this->e_escaped_quote, '=', $key );  // unescape escaped quotes
 		}
 		return $key;
 	}
@@ -310,7 +388,7 @@ class Enzymes
 			return '';
 		}
 		$entity = 'post';
-		if( preg_match( '/(@[\w\-]+)?~(\w+)/', $id, $sub ) )
+		if( preg_match( $this->e_maybe_id, $id, $sub ) )
 		{
 			$id = $sub[1];
 			$entity = $sub[2];
@@ -363,13 +441,13 @@ class Enzymes
 		list( $all, $before, $quoted, $after ) = $matches;
 		$outside = $quoted ? $before : $after;
 		//for some reason IE introduces C2 (hex) chars when writing a post
-		$clean = preg_replace( '/(?:\s|\xc2)+/', '', $outside ) . $quoted;
+		$clean = preg_replace( $this->e_blank, '', $outside ) . $quoted;
 		return $clean;
 	}
 
 	public function metabolism( $content, $post = '' )
 	{
-		if( ! preg_match( '/'.$this->e['content'].'/s', $content, $matchesOut ) )
+		if( ! preg_match( $this->e_content, $content, $matchesOut ) )
 		{
 			return $content;
 		}
@@ -391,12 +469,12 @@ class Enzymes
 				$sttmnt = strip_tags( $sttmnt );
 				// erase blanks (except inside quoted strings)
 				$sttmnt = preg_replace_callback(
-					'/(.*?)('.$this->e['quoted'].')|(.+)/s', array( $this, 'cb_strip_blanks' ), $sttmnt
+					$this->e_maybe_quoted, array( $this, 'cb_strip_blanks' ), $sttmnt
 				);
 				// erase comments
-				$sttmnt = preg_replace( '/'.$this->e['comment'].'/', '', $sttmnt );
+				$sttmnt = preg_replace( $this->e_comment, '', $sttmnt );
 
-				if( ! preg_match( '/'.$this->e['pathway2'].'/', '|'.$sttmnt ) )
+				if( ! preg_match( $this->e_pathway2, '|'.$sttmnt ) )
 				{ //not a pathway
 					$result = '{['.$matchesOut['statement'].']}';
 				}
@@ -404,7 +482,7 @@ class Enzymes
 				{ // process statement
 					$this->sequence_output = '';
 					$matchesIn['rest'] = $sttmnt;
-					while( preg_match( '/'.$this->e['pathway1'].'/', $matchesIn['rest'], $matchesIn ) )
+					while( preg_match( $this->e_pathway1, $matchesIn['rest'], $matchesIn ) )
 					{
 						$this->catalyze( $matchesIn );
 					}
@@ -414,7 +492,7 @@ class Enzymes
 			$this->new_content .= $matchesOut['before'].$result;
 			$after = $matchesOut['after']; // save tail, if next match fails
 		}
-		while( preg_match( '/'.$this->e['content'].'/s', $matchesOut['after'], $matchesOut ) );
+		while( preg_match( $this->e_content, $matchesOut['after'], $matchesOut ) );
 
 		return $this->new_content.$after;
 	}
