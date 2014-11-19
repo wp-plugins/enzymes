@@ -13,9 +13,9 @@ class Enzymes
 	var $templates_path = 'wp-content/plugins/enzymes/templates/';
 	var $new_content = '';  // the content of the post, modified by Enzymes
 	var $post      = '';  // the post which the content belongs to
-	var $pathway   = '';  // the output of the pathway
+	var $sequence_output = '';  // the output of the pathway
 	var $substrate = '';  // a custom field passed as input to an enzyme
-	var $enzyme    = '';  // the value of an enzyme
+	var $enzyme_output    = '';  // the value of an enzyme
 	var $merging   = '';  // the function used to merge the pathway and the enzyme
 	var $e;               // array of patterns of regular expressions
 	var $matches;         // array of matches for the current enzyme
@@ -104,15 +104,15 @@ class Enzymes
 			case '':
 				break;
 			case 'append':
-				$this->enzyme = $this->pathway . $this->enzyme;
+				$this->enzyme_output = $this->sequence_output . $this->enzyme_output;
 				break;
 			case 'prepend':
-				$this->enzyme = $this->enzyme . $this->pathway;
+				$this->enzyme_output = $this->enzyme_output . $this->sequence_output;
 				break;
 			default:
 				if( is_callable( $this->merging ) ) 
                 {
-					$this->enzyme = call_user_func( $this->merging, $this );
+					$this->enzyme_output = call_user_func( $this->merging, $this );
 				}
 		}
 	}
@@ -126,7 +126,7 @@ class Enzymes
             {
 				ob_start();
 				include( $file_path ); // include the requested template in the local scope
-				$this->enzyme = ob_get_contents();
+				$this->enzyme_output = ob_get_contents();
 				ob_end_clean();
 			}
 		}
@@ -134,16 +134,16 @@ class Enzymes
 
 	function do_evaluation() 
     {
-		if( '' != $this->enzyme ) 
+		if( '' != $this->enzyme_output )
         {
 			ob_start();
-			$this->enzyme = eval( $this->enzyme ); // evaluate the requested block in the local scope
-			$this->pathway = ob_get_contents();
+			$this->enzyme_output = eval( $this->enzyme_output ); // evaluate the requested block in the local scope
+			$this->sequence_output = ob_get_contents();
 			ob_end_clean();
 		}
 	}
 
-	function build_pathway() 
+	function build_sequence_output()
     {
 		if( '' != $this->matches['template'] ) 
         {
@@ -164,7 +164,7 @@ class Enzymes
         {
 			$this->apply_merging();
 		}
-		$this->pathway = $this->enzyme;
+		$this->sequence_output = $this->enzyme_output;
 	}
 	
 	function elaborate( $substrate ) 
@@ -344,21 +344,21 @@ class Enzymes
         { 
 			// transclusion
 			$this->substrate = '';
-			$this->enzyme = '' == $matches['value'] 
+			$this->enzyme_output = '' == $matches['value']
                 ? $this->item( $matches['id'], $matches['glue'], $matches['key'] )
 				: $this->unquote( $matches['value'] );
 			$this->merging = 'append';
-			$this->build_pathway();
+			$this->build_sequence_output();
 		}
 		else { 
 			// execution
 			$this->substrate = '' == $matches['sub_value'] 
                 ? $this->item( $matches['sub_id'], $matches['sub_glue'], $matches['sub_key'] )
 				: $this->unquote( $matches['sub_value'] );
-			$this->enzyme = $this->item( $matches['id'], $matches['glue'], $matches['key'] );
+			$this->enzyme_output = $this->item( $matches['id'], $matches['glue'], $matches['key'] );
 			$this->merging = '';
 			$this->do_evaluation();
-			$this->build_pathway();
+			$this->build_sequence_output();
 		}
 	}
 
@@ -406,13 +406,13 @@ class Enzymes
                 }
                 else 
                 { // process statement
-                    $this->pathway = '';
+                    $this->sequence_output = '';
                     $matchesIn['rest'] = $sttmnt;
                     while( preg_match( '/'.$this->e['pathway1'].'/', $matchesIn['rest'], $matchesIn ) ) 
                     {
                         $this->catalyze( $matchesIn );
                     }
-                    $result = $this->pathway;
+                    $result = $this->sequence_output;
                 }
             }
             $this->new_content .= $matchesOut['before'].$result;
