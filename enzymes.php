@@ -11,7 +11,7 @@ Author URI: http://noteslog.com
 class Enzymes 
 {
 	var $templates_path = 'wp-content/plugins/enzymes/templates/';
-	var $content   = '';  // the content of the post, modified by Enzymes
+	var $new_content = '';  // the content of the post, modified by Enzymes
 	var $post      = '';  // the post which the content belongs to
 	var $pathway   = '';  // the output of the pathway
 	var $substrate = '';  // a custom field passed as input to an enzyme
@@ -377,7 +377,7 @@ class Enzymes
         {
             return $content;
         }
-        $this->content = '';
+        $this->new_content = '';
         if( ! is_object( $post ) ) {
             global $post;
         }
@@ -415,12 +415,12 @@ class Enzymes
                     $result = $this->pathway;
                 }
             }
-            $this->content .= $matchesOut['before'].$result;
+            $this->new_content .= $matchesOut['before'].$result;
             $after = $matchesOut['after']; // save tail, if next match fails
         } 
         while( preg_match( '/'.$this->e['content'].'/s', $matchesOut['after'], $matchesOut ) );
 
-        return $this->content.$after;
+        return $this->new_content.$after;
 	}
 }
 
