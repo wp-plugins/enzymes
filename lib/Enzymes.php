@@ -20,113 +20,93 @@ class Enzymes
 	public function __construct() {
 		$this->templates_path = WP_CONTENT_DIR . '/plugins/enzymes/templates/';
 
-//		$this->e = array();
-
-		// oneword: '(?:(?:\w|-|~)+)';
-		$oneword = Ando_Regex::def('(?:(?:\w|-|~)+)');
-
-		// glue: '(?:\.|\:)';
-		$glue = Ando_Regex::def('(?:\.|\:)');
-		
-		// quoted: '(?:=[^=\\\\]*(?:\\\\.[^=\\\\]*)*=)';
-		$quoted = Ando_Regex::def('(?:=[^=\\\\]*(?:\\\\.[^=\\\\]*)*=)');
-		
-		// template: '(?:(?<tempType>\/|\\\\)(?<template>(?:[^\|])+))';
-		$template = Ando_Regex::def('(?:(?<tempType>\/|\\\\)(?<template>(?:[^\|])+))');
-		
-		// comment: '(?<comment>\/\*.*?\*\/)';
-		$comment = Ando_Regex::def('(?<comment>\/\*.*?\*\/)');
-
-		// id1: '(?:\d+|@(?:\w|-)+)';
-		$id1 = Ando_Regex::def('(?:\d+|@(?:\w|-)+)');
-		// id2: '(?:~\w+)';
-		$id2 = Ando_Regex::def('(?:~\w+)');
-		// id: '(?:'.$this->e['id1'].$this->e['id2'].'?|'.$this->e['id1'].'?'.$this->e['id2'].'|)'; //'\d*';
-		$id = Ando_Regex::def('(?:$id1$id2?|$id1?$id2|)')->interpolate(array(
+		$oneword = new Ando_Regex('(?:(?:\w|-|~)+)');
+		$glue = new Ando_Regex('(?:\.|\:)');
+		$quoted = new Ando_Regex('(?:=[^=\\\\]*(?:\\\\.[^=\\\\]*)*=)');
+		$template = new Ando_Regex('(?:(?<tempType>\/|\\\\)(?<template>(?:[^\|])+))');
+		$comment = new Ando_Regex('(?<comment>\/\*.*?\*\/)');
+		$id1 = new Ando_Regex('(?:\d+|@(?:\w|-)+)');
+		$id2 = new Ando_Regex('(?:~\w+)');
+		$id = new Ando_Regex('(?:$id1$id2?|$id1?$id2|)');
+		$id->interpolate(array(
 			'id1' => $id1,
 			'id2' => $id2,
 		));
-
-		// key: '(?:'.$this->e['quoted'].'|'.$this->e['oneword'].')';
-		$key = Ando_Regex::def('(?:$quoted|$oneword)')->interpolate(array(
+		$key = new Ando_Regex('(?:$quoted|$oneword)');
+		$key->interpolate(array(
 			'quoted'  => $quoted,
 			'oneword' => $oneword,
 		));
-
-		// block: '(?:(?<id>'.$this->e['id'].')(?<glue>'.$this->e['glue'].')(?<key>'.$this->e['key'].')|(?<value>'.$this->e['quoted'].'))';
-		$block = Ando_Regex::def('(?:(?<id>$id)(?<glue>$glue)(?<key>$key)|(?<value>$quoted))')->interpolate(array(
+		$block = new Ando_Regex('(?:(?<id>$id)(?<glue>$glue)(?<key>$key)|(?<value>$quoted))');
+		$block->interpolate(array(
 			'id'     => $id,
 			'glue'   => $glue,
 			'key'    => $key,
 			'quoted' => $quoted,
 		));
-
-		// substrate: '(?<sub_id>'.$this->e['id'].')(?<sub_glue>'.$this->e['glue'].')(?<sub_key>'.$this->e['key'].')|(?<sub_value>'.$this->e['quoted'].')';
-		$substrate = Ando_Regex::def('(?<sub_id>$id)(?<sub_glue>$glue)(?<sub_key>$key)|(?<sub_value>$quoted)')->interpolate(array(
+		$substrate = new Ando_Regex('(?<sub_id>$id)(?<sub_glue>$glue)(?<sub_key>$key)|(?<sub_value>$quoted)');
+		$substrate->interpolate(array(
 			'id'     => $id,
 			'glue'   => $glue,
 			'key'    => $key,
 			'quoted' => $quoted,
 		));
-
-		// sub_block: '(?<sub_block>\((?:$substrate)?\))';
-		$sub_block = Ando_Regex::def('(?<sub_block>\((?:$substrate)?\))')->interpolate(array(
+		$sub_block = new Ando_Regex('(?<sub_block>\((?:$substrate)?\))');
+		$sub_block->interpolate(array(
 			'substrate' => $substrate,
 		));
-
-		// enzyme: '(?:'.$this->e['block'].$this->e['sub_block'].'?$template?)';
-		$enzyme = Ando_Regex::def('(?:$block$sub_block?$template?)')->interpolate(array(
+		$enzyme = new Ando_Regex('(?:$block$sub_block?$template?)');
+		$enzyme->interpolate(array(
 			'block'     => $block,
 			'sub_block' => $sub_block,
 			'template'  => $template,
 		));
 		//pathway = enzyme|enzyme|...|enzyme
-		// rest: '(?:\|(?<rest>.+))';
-		$rest = Ando_Regex::def('(?:\|(?<rest>.+))');
-		// pathway1: '^'.$this->e['enzyme'].$this->e['rest'].'?$';  //if processing pathway, match /enzyme|rest*/
-		$pathway1 = Ando_Regex::def('^$enzyme$rest?$')->interpolate(array(
+		$rest = new Ando_Regex('(?:\|(?<rest>.+))');
+		$pathway1 = new Ando_Regex('^$enzyme$rest?$');
+		$pathway1->interpolate(array(
 			'enzyme' => $enzyme,
 			'rest'   => $rest,
 		));
-		// pathway2: '^(?:\|$enzyme)+$';             //if accepting  pathway, match /(|head)+/     (against |pathway)
-		$pathway2 = Ando_Regex::def('^(?:\|$enzyme)+$')->interpolate(array(
+		$pathway2 = new Ando_Regex('^(?:\|$enzyme)+$');
+		$pathway2->interpolate(array(
 			'enzyme' => $enzyme,
 		));
-
-		// before: '(?<before>.*?)';
-		$before = Ando_Regex::def('(?<before>.*?)');
-		// statement: '\{\[(?<statement>.*?)\]\}';
-		$statement = Ando_Regex::def('\{\[(?<statement>.*?)\]\}');
-		// after: '(?<after>.*)';
-		$after = Ando_Regex::def('(?<after>.*)');
-		// content: '^'.$this->e['before'].$this->e['statement'].$this->e['after'].'$';
-		$content = Ando_Regex::def('^$before$statement$after$', '@@s')->interpolate(array(
+		$before = new Ando_Regex('(?<before>.*?)');
+		$statement = new Ando_Regex('\{\[(?<statement>.*?)\]\}');
+		$after = new Ando_Regex('(?<after>.*)');
+		$content = new Ando_Regex('^$before$statement$after$', '@@s');
+		$content->interpolate(array(
 			'before'    => $before,
 			'statement' => $statement,
 			'after'     => $after,
 		));
-
-		$each = Ando_Regex::def('/^(.+?)=>(.*(?:$glue).+)$/')->interpolate(array(
+		$each = new Ando_Regex('/^(.+?)=>(.*(?:$glue).+)$/');
+		$each->interpolate(array(
 			'glue' => $glue,
 		));
-		$maybe_quoted = Ando_Regex::def('(.*?)($quoted)|(.+)', '@@s')->interpolate(array(
+		$maybe_quoted = new Ando_Regex('(.*?)($quoted)|(.+)', '@@s');
+		$maybe_quoted->interpolate(array(
 			'quoted' => $quoted,
 		));
-		$escaped_quote = Ando_Regex::def('\\\\=');
-		$maybe_id = Ando_Regex::def('(@[\w\-]+)?~(\w+)');
-		$blank = Ando_Regex::def('(?:\s|\xc2)+');
+		$escaped_quote = new Ando_Regex('\\\\=');
+		$maybe_id = new Ando_Regex('(@[\w\-]+)?~(\w+)');
+		$blank = new Ando_Regex('(?:\s|\xc2)+');
 
+		// these need to be wrapped
+		$this->e_maybe_id = $maybe_id->wrapper_set('@@');
+		$this->e_each = $each->wrapper_set('@@');
+		$this->e_quoted = $quoted->wrapper_set('@@');
+		$this->e_escaped_quote = $escaped_quote->wrapper_set('@@');
+		$this->e_blank = $blank->wrapper_set('@@');
+		$this->e_comment = $comment->wrapper_set('@@');
+		$this->e_pathway1 = $pathway1->wrapper_set('@@');
+		$this->e_pathway2 = $pathway2->wrapper_set('@@');
 
-		$this->e_maybe_id = $maybe_id;
-		$this->e_each = $each;
-		$this->e_quoted = $quoted;
+		// these were already wrapped
 		$this->e_content = $content;
 		$this->e_maybe_quoted = $maybe_quoted;
-		$this->e_escaped_quote = $escaped_quote;
-		$this->e_blank = $blank;
-		$this->e_comment = $comment;
-		$this->e_pathway1 = $pathway1;
-		$this->e_pathway2 = $pathway2;
+
 
 		$this->post_key = array(
 			'id'               => 'ID',
@@ -171,6 +151,10 @@ class Enzymes
 		);
 	}
 
+	protected function default_pairs(&$actual, $expected) {
+		$actual = array_merge($expected, $actual);
+	}
+
 	protected function apply_merging()
 	{
 		switch( $this->merging )
@@ -193,6 +177,9 @@ class Enzymes
 
 	protected function do_inclusion()
 	{
+		$this->default_pairs($this->matches, array(
+			'template' => '',
+		));
 		if( '' != $this->matches['template'] )
 		{
 			$file_path = ABSPATH . $this->templates_path . $this->matches['template'];
@@ -219,6 +206,10 @@ class Enzymes
 
 	protected function build_sequence_output()
 	{
+		$this->default_pairs($this->matches, array(
+			'template' => '',
+			'tempType' => '',
+		));
 		if( '' != $this->matches['template'] )
 		{
 			if( '/' == $this->matches['tempType'] )
@@ -413,6 +404,17 @@ class Enzymes
 
 	protected function catalyze( $matches )
 	{
+		$this->default_pairs($matches, array(
+			'sub_block' => '',
+			'value'     => '',
+			'id'        => '',
+			'glue'      => '',
+			'key'       => '',
+			'sub_value' => '',
+			'sub_id'    => '',
+			'sub_glue'  => '',
+			'sub_key'   => '',
+		));
 		$this->matches = $matches;
 		if( '' == $matches['sub_block'] )
 		{
@@ -458,6 +460,11 @@ class Enzymes
 		$this->post = $post;
 		do
 		{
+			$this->default_pairs($matchesOut, array(
+				'before'    => '',
+				'statement' => '',
+				'after'     => '',
+			));
 			if( '{' == substr( $matchesOut['before'], -1 ) )
 			{ //not to be processed
 				$result = '['.$matchesOut['statement'].']}';
@@ -484,6 +491,9 @@ class Enzymes
 					$matchesIn['rest'] = $sttmnt;
 					while( preg_match( $this->e_pathway1, $matchesIn['rest'], $matchesIn ) )
 					{
+						$this->default_pairs($matchesIn, array(
+							'rest' => '',
+						));
 						$this->catalyze( $matchesIn );
 					}
 					$result = $this->sequence_output;
