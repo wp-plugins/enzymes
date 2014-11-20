@@ -17,9 +17,8 @@ class Enzymes
 	protected $post_key = null;
 	protected $user_key = null;
 
-	public function __construct() {
-		$this->templates_path = WP_CONTENT_DIR . '/plugins/enzymes/templates/';
 
+	protected function init_expressions() {
 		$oneword = new Ando_Regex('(?:(?:\w|-|~)+)');
 		$glue = new Ando_Regex('(?:\.|\:)');
 		$quoted = new Ando_Regex('(?:=[^=\\\\]*(?:\\\\.[^=\\\\]*)*=)');
@@ -106,8 +105,9 @@ class Enzymes
 		// these were already wrapped
 		$this->e_content = $content;
 		$this->e_maybe_quoted = $maybe_quoted;
+	}
 
-
+	protected function init_keys() {
 		$this->post_key = array(
 			'id'               => 'ID',
 
@@ -149,6 +149,12 @@ class Enzymes
 
 			'display_name'     => 'display_name',
 		);
+	}
+
+	public function __construct() {
+		$this->templates_path = WP_CONTENT_DIR . '/plugins/enzymes/templates/';
+		$this->init_expressions();
+		$this->init_keys();
 	}
 
 	protected function default_pairs(&$actual, $expected) {
