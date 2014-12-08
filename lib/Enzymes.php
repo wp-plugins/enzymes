@@ -17,32 +17,48 @@ class Enzymes
 	protected $post_key = null;
 	protected $user_key = null;
 
+    protected $e_maybe_id = '';
+    protected $e_each = '';
+    protected $e_quoted = '';
+    protected $e_escaped_quote = '';
+    protected $e_blank = '';
+    protected $e_comment = '';
+    protected $e_pathway1 = '';
+    protected $e_pathway2 = '';
+
+    protected $e_content = '';
+    protected $e_maybe_quoted = '';
+
 
 	protected function init_expressions() {
-		$oneword = new Ando_Regex('(?:(?:\w|-|~)+)');
-		$glue = new Ando_Regex('(?:\.|\:)');
-		$quoted = new Ando_Regex('(?:=[^=\\\\]*(?:\\\\.[^=\\\\]*)*=)');
+		$oneword  = new Ando_Regex('(?:(?:\w|-|~)+)');
+		$glue     = new Ando_Regex('(?:\.|\:)');
+		$quoted   = new Ando_Regex('(?:=[^=\\\\]*(?:\\\\.[^=\\\\]*)*=)');
 		$template = new Ando_Regex('(?:(?<tempType>\/|\\\\)(?<template>(?:[^\|])+))');
-		$comment = new Ando_Regex('(?<comment>\/\*.*?\*\/)');
-		$id1 = new Ando_Regex('(?:\d+|@(?:\w|-)+)');
-		$id2 = new Ando_Regex('(?:~\w+)');
-		$id = new Ando_Regex('(?:$id1$id2?|$id1?$id2|)');
+		$comment  = new Ando_Regex('(?<comment>\/\*.*?\*\/)');
+		$id1      = new Ando_Regex('(?:\d+|@(?:\w|-)+)');
+		$id2      = new Ando_Regex('(?:~\w+)');
+
+		$id       = new Ando_Regex('(?:$id1$id2?|$id1?$id2|)');
 		$id->interpolate(array(
 			'id1' => $id1,
 			'id2' => $id2,
 		));
-		$key = new Ando_Regex('(?:$quoted|$oneword)');
+
+        $key = new Ando_Regex('(?:$quoted|$oneword)');
 		$key->interpolate(array(
 			'quoted'  => $quoted,
 			'oneword' => $oneword,
 		));
-		$block = new Ando_Regex('(?:(?<id>$id)(?<glue>$glue)(?<key>$key)|(?<value>$quoted))');
+
+        $block = new Ando_Regex('(?:(?<id>$id)(?<glue>$glue)(?<key>$key)|(?<value>$quoted))');
 		$block->interpolate(array(
 			'id'     => $id,
 			'glue'   => $glue,
 			'key'    => $key,
 			'quoted' => $quoted,
 		));
+
 		$substrate = new Ando_Regex('(?<sub_id>$id)(?<sub_glue>$glue)(?<sub_key>$key)|(?<sub_value>$quoted)');
 		$substrate->interpolate(array(
 			'id'     => $id,
@@ -50,6 +66,7 @@ class Enzymes
 			'key'    => $key,
 			'quoted' => $quoted,
 		));
+
 		$sub_block = new Ando_Regex('(?<sub_block>\((?:$substrate)?\))');
 		$sub_block->interpolate(array(
 			'substrate' => $substrate,
@@ -60,6 +77,7 @@ class Enzymes
 			'sub_block' => $sub_block,
 			'template'  => $template,
 		));
+
 		//pathway = enzyme|enzyme|...|enzyme
 		$rest = new Ando_Regex('(?:\|(?<rest>.+))');
 		$pathway1 = new Ando_Regex('^$enzyme$rest?$');
@@ -67,10 +85,12 @@ class Enzymes
 			'enzyme' => $enzyme,
 			'rest'   => $rest,
 		));
+
 		$pathway2 = new Ando_Regex('^(?:\|$enzyme)+$');
 		$pathway2->interpolate(array(
 			'enzyme' => $enzyme,
 		));
+
 		$before = new Ando_Regex('(?<before>.*?)');
 		$statement = new Ando_Regex('\{\[(?<statement>.*?)\]\}');
 		$after = new Ando_Regex('(?<after>.*)');
@@ -80,6 +100,7 @@ class Enzymes
 			'statement' => $statement,
 			'after'     => $after,
 		));
+
 		$each = new Ando_Regex('/^(.+?)=>(.*(?:$glue).+)$/');
 		$each->interpolate(array(
 			'glue' => $glue,
@@ -88,17 +109,18 @@ class Enzymes
 		$maybe_quoted->interpolate(array(
 			'quoted' => $quoted,
 		));
+
 		$escaped_quote = new Ando_Regex('\\\\=');
 		$maybe_id = new Ando_Regex('(@[\w\-]+)?~(\w+)');
 		$blank = new Ando_Regex('(?:\s|\xc2)+');
 
 		// these need to be wrapped
 		$this->e_maybe_id = $maybe_id->wrapper_set('@@');
-		$this->e_each = $each->wrapper_set('@@');
-		$this->e_quoted = $quoted->wrapper_set('@@');
+		$this->e_each     = $each->wrapper_set('@@');
+		$this->e_quoted   = $quoted->wrapper_set('@@');
 		$this->e_escaped_quote = $escaped_quote->wrapper_set('@@');
-		$this->e_blank = $blank->wrapper_set('@@');
-		$this->e_comment = $comment->wrapper_set('@@');
+		$this->e_blank    = $blank->wrapper_set('@@');
+		$this->e_comment  = $comment->wrapper_set('@@');
 		$this->e_pathway1 = $pathway1->wrapper_set('@@');
 		$this->e_pathway2 = $pathway2->wrapper_set('@@');
 
