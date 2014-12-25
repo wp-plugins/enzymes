@@ -4,188 +4,154 @@ require_once 'Ando/Regex.php';
 
 class Enzymes3
 {
-    protected $templates_path;
-    protected $new_content = '';  // the content of the post, modified by Enzymes
-    protected $sequence_output = '';  // the output of the pathway (sequence of enzymes)
-    protected $enzyme_output = '';  // the value of an enzyme (transclusion or execution expression)
-
     protected $post = '';  // the post which the content belongs to
-    protected $substrate = '';  // a custom field passed as input to an enzyme
-    protected $merging = '';  // the function used to merge the pathway and the enzyme
-    protected $matches;         // array of matches for the current enzyme
+    protected $new_content = '';  // the content of the post, modified by Enzymes
 
-    protected $post_key = null;
-    protected $user_key = null;
-
-    protected $e_maybe_id = '';
-    protected $e_each = '';
-    protected $e_quoted = '';
-    protected $e_escaped_quote = '';
-    protected $e_blank = '';
     protected $e_comment = '';
-    protected $e_pathway1 = '';
-    protected $e_pathway2 = '';
+    protected $e_blank = '';
+    protected $e_escaped_injection_delimiter = '';
+    protected $e_escaped_string_delimiter = '';
+    protected $e_maybe_id = '';
 
-    protected $e_content = '';
-    protected $e_maybe_quoted = '';
+    protected $find_injection = '';
+    protected $find_sequence_valid = '';
+    protected $find_sequence_start = '';
+    protected $find_string = '';
+
+    /**
+     * Grammar (top down).
+     * ---
+     * injection  := "{[" sequence "]}"
+     *   sequence := enzyme ("|" enzyme)*
+     *   enzyme   := literal | transclusion | execution
+     *
+     * literal   := number | string
+     *   number  := \d+(\.\d+)?
+     *   string  := "=" <a string where "=", "|", "]}", "\"  are escaped by a prefixed "\"> "="
+     *
+     * transclusion := item | post "~author:" attribute | post ":" attribute
+     *   item       := post "." field
+     *   post       := \d+ | "@" slug | ""
+     *   slug       := [\w+~-]+
+     *   field      := [\w-]+ | string
+     *   attribute  := \w+
+     *
+     * execution := ("array" | "hash" | item) "(" \d* ")"
+     * ---
+     *
+     * These (key, value) pairs follow the pattern: "'rule_left' => '(?<rule_left>rule_right)';".
+     *
+     * @var Ando_Regex[]
+     */
+    protected $grammar;
+
+    protected
+    function init_grammar()
+    {
+        /**
+         * Notice that $grammar rules are sorted bottom up here to allow complete interpolation.
+         */
+        $grammar = array(
+                'number'       => '(?<number>\d+(\.\d+)?)',
+                'string'       => '(?<string>' . Ando_Regex::pattern_quoted_string('=', '=') . ')',
+                'literal'      => '(?<literal>$number|$string)',
+
+                'slug'         => '(?<slug>[\w+~-]+)',
+                'attribute'    => '(?<attribute>\w+)',
+                'post'         => '(?<post>\d+|@$slug|)',
+                'field'        => '(?<field>[\w-]+|$string)',
+                'item'         => '(?<item>$post\.$field)',
+                'transclusion' => '(?<transclusion>$item|$post~author:$attribute|$post:$attribute)',
+
+                'execution'    => '(?<execution>(?:\barray\b|\bhash\b|$item)\((?<num_args>\d*)\))',
+
+                'enzyme'       => '(?<enzyme>(?:$literal|$transclusion|$execution))',
+                'sequence'     => '(?<sequence>$enzyme(\|$enzyme)*)',
+                'injection'    => '(?<injection>{[$sequence]})',
+        );
+        $result = array();
+        foreach ($grammar as $symbol => $rule) {
+            $regex = new Ando_Regex($rule);
+            $result[$symbol] = $regex->interpolate($grammar);
+        }
+        $this->grammar = $result;
+    }
+
+    protected
+    function init_find_injection()
+    {
+        $before = new Ando_Regex('(?<before>.*?)');
+        $could_be_injection = new Ando_Regex('\{\[(?<could_be_sequence>.*?)\]\}');
+        $after = new Ando_Regex('(?<after>.*)');
+        $content = new Ando_Regex('^$before$could_be_injection$after$', '@@s');
+        $content->interpolate(array(
+                                      'before'             => $before,
+                                      'could_be_injection' => $could_be_injection,
+                                      'after'              => $after,
+                              ));
+        $this->find_injection = $content;
+    }
+
+    protected
+    function init_find_sequence_valid()
+    {
+        // Notice that sequence_valid matches all the enzymes of the sequence at once.
+        $sequence_valid = new Ando_Regex('^(?:\|$enzyme)+$', '@@');
+        $sequence_valid->interpolate(array(
+                                             'enzyme' => $this->grammar['enzyme'],
+                                     ));
+        $this->find_sequence_valid = $sequence_valid;
+    }
+
+    protected
+    function init_find_sequence_start()
+    {
+        $rest = new Ando_Regex('(?:\|(?<rest>.+))');
+        $sequence_start = new Ando_Regex('^$enzyme$rest?$');
+        $sequence_start->interpolate(array(
+                                             'enzyme' => $this->grammar['enzyme'],
+                                             'rest'   => $rest,
+                                     ));
+        $this->find_sequence_start = $sequence_start->wrapper_set('@@');
+    }
+
+    protected
+    function init_find_string()
+    {
+        $maybe_quoted = new Ando_Regex('(.*?)($quoted)|(.+)', '@@s');
+        $maybe_quoted->interpolate(array(
+                                           'quoted' => $this->grammar['string'],
+                                   ));
+        $this->find_string = $maybe_quoted;
+    }
 
     protected
     function init_expressions()
     {
-        $oneword = new Ando_Regex('(?:(?:\w|-|~)+)');
-        $glue = new Ando_Regex('(?:\.|\:)');
-        $quoted = new Ando_Regex('(?:=[^=\\\\]*(?:\\\\.[^=\\\\]*)*=)');
-        $template = new Ando_Regex('(?:(?<tempType>\/|\\\\)(?<template>(?:[^\|])+))');
-        $comment = new Ando_Regex('(?<comment>\/\*.*?\*\/)');
-        $id1 = new Ando_Regex('(?:\d+|@(?:\w|-)+)');
-        $id2 = new Ando_Regex('(?:~\w+)');
-
-        $id = new Ando_Regex('(?:$id1$id2?|$id1?$id2|)');
-        $id->interpolate(array(
-                                 'id1' => $id1,
-                                 'id2' => $id2,
-                         ));
-
-        $key = new Ando_Regex('(?:$quoted|$oneword)');
-        $key->interpolate(array(
-                                  'quoted'  => $quoted,
-                                  'oneword' => $oneword,
-                          ));
-
-        $block = new Ando_Regex('(?:(?<id>$id)(?<glue>$glue)(?<key>$key)|(?<value>$quoted))');
-        $block->interpolate(array(
-                                    'id'     => $id,
-                                    'glue'   => $glue,
-                                    'key'    => $key,
-                                    'quoted' => $quoted,
-                            ));
-
-        $substrate = new Ando_Regex('(?<sub_id>$id)(?<sub_glue>$glue)(?<sub_key>$key)|(?<sub_value>$quoted)');
-        $substrate->interpolate(array(
-                                        'id'     => $id,
-                                        'glue'   => $glue,
-                                        'key'    => $key,
-                                        'quoted' => $quoted,
-                                ));
-
-        $sub_block = new Ando_Regex('(?<sub_block>\((?:$substrate)?\))');
-        $sub_block->interpolate(array(
-                                        'substrate' => $substrate,
-                                ));
-        $enzyme = new Ando_Regex('(?:$block$sub_block?$template?)');
-        $enzyme->interpolate(array(
-                                     'block'     => $block,
-                                     'sub_block' => $sub_block,
-                                     'template'  => $template,
-                             ));
-
-        //pathway = enzyme|enzyme|...|enzyme
-        $rest = new Ando_Regex('(?:\|(?<rest>.+))');
-        $pathway1 = new Ando_Regex('^$enzyme$rest?$');
-        $pathway1->interpolate(array(
-                                       'enzyme' => $enzyme,
-                                       'rest'   => $rest,
-                               ));
-
-        $pathway2 = new Ando_Regex('^(?:\|$enzyme)+$');
-        $pathway2->interpolate(array(
-                                       'enzyme' => $enzyme,
-                               ));
-
-        $before = new Ando_Regex('(?<before>.*?)');
-        $sequence = new Ando_Regex('\{\[(?<sequence>.*?)\]\}');
-        $after = new Ando_Regex('(?<after>.*)');
-        $content = new Ando_Regex('^$before$sequence$after$', '@@s');
-        $content->interpolate(array(
-                                      'before'    => $before,
-                                      'sequence' => $sequence,
-                                      'after'     => $after,
-                              ));
-
-        $each = new Ando_Regex('/^(.+?)=>(.*(?:$glue).+)$/');
-        $each->interpolate(array(
-                                   'glue' => $glue,
-                           ));
-        $maybe_quoted = new Ando_Regex('(.*?)($quoted)|(.+)', '@@s');
-        $maybe_quoted->interpolate(array(
-                                           'quoted' => $quoted,
-                                   ));
-
-        $escaped_quote = new Ando_Regex('\\\\=');
-        $maybe_id = new Ando_Regex('(@[\w\-]+)?~(\w+)');
-        $blank = new Ando_Regex('(?:\s|\xc2)+');
-
-        // these need to be wrapped
-        $this->e_maybe_id = $maybe_id->wrapper_set('@@');
-        $this->e_each = $each->wrapper_set('@@');
-        $this->e_quoted = $quoted->wrapper_set('@@');
-        $this->e_escaped_quote = $escaped_quote->wrapper_set('@@');
-        $this->e_blank = $blank->wrapper_set('@@');
-        $this->e_comment = $comment->wrapper_set('@@');
-        $this->e_pathway1 = $pathway1->wrapper_set('@@');
-        $this->e_pathway2 = $pathway2->wrapper_set('@@');
-
-        // these were already wrapped
-        $this->e_content = $content;
-        $this->e_maybe_quoted = $maybe_quoted;
-    }
-
-    protected
-    function init_keys()
-    {
-        $this->post_key = array(
-                'id'               => 'ID',
-
-                'name'             => 'post_name',
-                'password'         => 'post_password',
-                'date'             => 'post_date',
-                'date_gmt'         => 'post_date_gmt',
-                'modified'         => 'post_modified',
-                'modified_gmt'     => 'post_modified_gmt',
-                'content'          => 'post_content',
-                'content_filtered' => 'post_content_filtered',
-                'title'            => 'post_title',
-                'excerpt'          => 'post_excerpt',
-                'status'           => 'post_status',
-                'type'             => 'post_type',
-                'parent'           => 'post_parent',
-                'mime_type'        => 'post_mime_type',
-
-                'comment_status'   => 'comment_status',
-                'comment_count'    => 'comment_count',
-                'ping_status'      => 'ping_status',
-                'menu_order'       => 'menu_order',
-                'to_ping'          => 'to_ping',
-                'pinged'           => 'pinged',
-                'guid'             => 'guid',
-        );
-
-        $this->user_key = array(
-                'id'             => 'ID',
-
-                'login'          => 'user_login',
-                'pass'           => 'user_pass',
-                'nicename'       => 'user_nicename',
-                'email'          => 'user_email',
-                'url'            => 'user_url',
-                'registered'     => 'user_registered',
-                'activation_key' => 'user_activation_key',
-                'status'         => 'user_status',
-
-                'display_name'   => 'display_name',
-        );
+        $this->e_comment = new Ando_Regex('(\/\*.*?\*\/)', '@@');
+        // for some reason WP introduces some C2 (hex) chars when writing a post...
+        $this->e_blank = new Ando_Regex('(?:\s|\xc2)+', '@@');
+        $this->e_escaped_injection_delimiter = new Ando_Regex('\\\\([{[\]}])', '@@');
+        $this->e_escaped_string_delimiter = new Ando_Regex('\\\\=', '@@');
+        $this->e_maybe_id = new Ando_Regex('(@[\w\-]+)?~(\w+)', '//');
     }
 
     public
     function __construct()
     {
-        $this->templates_path = WP_CONTENT_DIR . '/plugins/enzymes/templates/';
+        $this->init_grammar();
+        $this->init_find_injection();
+        $this->init_find_sequence_valid();
+        $this->init_find_sequence_start();
+        $this->init_find_string();
         $this->init_expressions();
-        $this->init_keys();
     }
 
+    /**
+     * @param array $actual
+     */
     protected
-    function default_empty( &$actual )
+    function default_empty( array &$actual )
     {
         $keys = func_get_args();
         array_shift($keys);
@@ -193,334 +159,323 @@ class Enzymes3
         $actual = array_merge($default, $actual);
     }
 
+    /**
+     * @param string $code
+     * @param array  $arguments
+     *
+     * @return array
+     */
     protected
-    function apply_merging()
+    function safe_eval( $code, array $arguments = array() )
     {
-        switch ($this->merging) {
-            case '':
+        // use an expression like this inside a custom field value:
+        // list($some, $appropriate, $variable, $name) = $arguments;
+        ob_start();
+        $result = eval($code);
+        $output = ob_get_contents();
+        ob_end_clean();
+        return array($result, $output);
+    }
+
+    /**
+     * @param array $matches
+     *
+     * @return WP_Post
+     */
+    protected
+    function wp_post( array $matches )
+    {
+        $this->default_empty($matches, 'post', 'slug');
+        extract($matches);
+        /* @var $post string */
+        /* @var $slug string */
+        switch (true) {
+            case ($post == ''):
+                $result = $this->post;
                 break;
-            case 'append':
-                $this->enzyme_output = $this->sequence_output . $this->enzyme_output;
+            case ($post[0] == '@'):
+                $result = get_page_by_path($slug, OBJECT, 'post');
                 break;
-            case 'prepend':
-                $this->enzyme_output = $this->enzyme_output . $this->sequence_output;
+            case (is_numeric($post)):
+                $result = get_post($post);
                 break;
             default:
-                if ( is_callable($this->merging) ) {
-                    $this->enzyme_output = call_user_func($this->merging, $this);
-                }
-        }
-    }
-
-    protected
-    function do_inclusion()
-    {
-        $this->default_empty($this->matches, 'template');
-        if ( '' != $this->matches['template'] ) {
-            $file_path = ABSPATH . $this->templates_path . $this->matches['template'];
-            if ( file_exists($file_path) ) {
-                ob_start();
-                include($file_path); // include the requested template in the local scope
-                $this->enzyme_output = ob_get_contents();
-                ob_end_clean();
-            }
-        }
-    }
-
-    protected
-    function do_evaluation()
-    {
-        if ( '' != $this->enzyme_output ) {
-            ob_start();
-            $this->enzyme_output = eval($this->enzyme_output); // evaluate the requested block in the local scope
-            $this->sequence_output = ob_get_contents();
-            ob_end_clean();
-        }
-    }
-
-    protected
-    function build_sequence_output()
-    {
-        $this->default_empty($this->matches, 'template', 'tempType');
-        if ( '' != $this->matches['template'] ) {
-            if ( '/' == $this->matches['tempType'] ) {
-                // slash template
-                $this->apply_merging();
-                $this->do_inclusion();
-            } else {
-                // backslash template
-                $this->do_inclusion();
-                $this->apply_merging();
-            }
-        } else {
-            $this->apply_merging();
-        }
-        $this->sequence_output = $this->enzyme_output;
-    }
-
-    protected
-    function elaborate( $substrate )
-    {
-        if ( '' == $substrate ) {
-            return array('');
-        }
-        $substrate1 = explode("\n", $substrate);
-        foreach ($substrate1 as $i => $subject) {
-            if ( '' == $subject ) {
-                continue;
-            }
-            if ( preg_match($this->e_each, $subject, $sub) ) {
-                $key = trim($sub[1]);
-                $subject = trim($sub[2]);
-            } else {
-                $key = $i;
-            }
-            $enzymes = new Enzymes();
-            $substrate2[$key] = $enzymes->metabolism("{[$subject]}", $this->post);
-        }
-        return $substrate2;
-    }
-
-    protected
-    function get_id( $id )
-    {
-        if ( intval($id) ) {
-            $post_id = $id;
-        } elseif ( '' == $id ) {
-            $post_id = $this->post->ID;
-        } else {
-            global $wpdb;
-            $name = substr($id, 1);
-            $post_id = $wpdb->get_var("SELECT ID FROM $wpdb->posts WHERE post_name = '$name'");
-        }
-        return $post_id;
-    }
-
-    protected
-    function get_userdata( $user_id, $key )
-    {
-        //the get_userdata function in the WP API retrieves custom fields too, this one does not
-        global $wpdb;
-        return $wpdb->get_var("SELECT $key FROM $wpdb->users WHERE ID = $user_id");
-    }
-
-    protected
-    function unquote( $key )
-    {
-        if ( preg_match($this->e_quoted, $key) ) {
-            $key = substr($key, 1, -1);  // unwrap from quotes
-            $key = preg_replace($this->e_escaped_quote, '=', $key);  // unescape escaped quotes
-        }
-        return $key;
-    }
-
-    protected
-    function post_value( $id, $glue, $key )
-    {
-        $value = '';
-        switch ($glue) {
-            case '.':
-                $key = $this->unquote($key);
-                //$value = get_post_meta( $id, $key, true );
-                $value = get_post_meta($id, $key, false);
-                $count = count($value);
-                if ( $count > 1 ) {
-                    $value = serialize($value);
-                } elseif ( $count == 1 ) {
-                    $value = $value[0];
-                } else {
-                    $value = '';
-                }
-                break;
-
-            case ':':
-                switch ($key) {
-                    case 'id':
-                        $value = $id;
-                        break;
-
-                    default:
-                        $post = get_post($id);
-                        $key = $this->post_key[$key];
-                        if ( isset($key) && ('' !== $key) ) {
-                            $value = $post->$key;
-                        }
-                }
+                $result = null;
                 break;
         }
-        return $value;
-    }
-
-    protected
-    function author_value( $id, $glue, $key )
-    {
-        $post = get_post($id);
-        $author_id = $post->post_author;
-        switch ($glue) {
-            case '.':
-                $key = $this->unquote($key);
-                $value = get_user_meta($author_id, $key, true);
-                break;
-
-            case ':':
-                switch ($key) {
-                    case 'id':
-                        $value = $author_id;
-                        break;
-
-                    default:
-                        $key = $this->user_key[$key];
-                        if ( isset($key) && ('' !== $key) ) {
-                            $value = $this->get_userdata($author_id, $key);
-                        }
-                }
-                break;
-        }
-        return $value;
-    }
-
-    protected
-    function item( $id, $glue, $key = null )
-    {
-        if ( is_null($key) ) {
-            $key = $glue;
-            $glue = '.';
-        }
-        if ( '' == $key ) {
-            return '';
-        }
-        $entity = 'post';
-        if ( preg_match($this->e_maybe_id, $id, $sub) ) {
-            $id = $sub[1];
-            $entity = $sub[2];
-        }
-        $id = $this->get_id($id);
-
-        switch ($entity) {
-            case 'post':
-                $value = $this->post_value($id, $glue, $key);
-                break;
-
-            case 'author':
-                $value = $this->author_value($id, $glue, $key);
-                break;
-
-            default:
-                $value = '';
-        }
-        return $value;
-    }
-
-    protected
-    function catalyze( $matches )
-    {
-        $this->default_empty($matches, 'sub_block', 'value', 'id', 'glue', 'key', 'sub_value', 'sub_id', 'sub_glue', 'sub_key');
-        $this->matches = $matches;
-        if ( '' == $matches['sub_block'] ) {
-            // transclusion
-            $this->substrate = '';
-            $this->enzyme_output = '' == $matches['value']
-                    ? $this->item($matches['id'], $matches['glue'], $matches['key'])
-                    : $this->unquote($matches['value']);
-            $this->merging = 'append';
-            $this->build_sequence_output();
-        } else {
-            // execution
-            $this->substrate = '' == $matches['sub_value']
-                    ? $this->item($matches['sub_id'], $matches['sub_glue'], $matches['sub_key'])
-                    : $this->unquote($matches['sub_value']);
-            $this->enzyme_output = $this->item($matches['id'], $matches['glue'], $matches['key']);
-            $this->merging = '';
-            $this->do_evaluation();
-            $this->build_sequence_output();
-        }
-    }
-
-    protected
-    function cb_strip_blanks( $matches )
-    {
-        list($all, $before, $quoted, $after) = $matches;
-        $outside = $quoted
-                ? $before
-                : $after;
-        //for some reason IE introduces C2 (hex) chars when writing a post
-        $clean = preg_replace($this->e_blank, '', $outside) . $quoted;
-        return $clean;
-    }
-    
-    protected 
-    function there_is_a_sequence( $content, &$matches ) {
-        $result = false !== strpos($content, '{[') && preg_match($this->e_content, $content, $matches);
-        return $result;
-    }
-
-    protected
-    function init( $post ) {
-        $this->new_content = '';
-        if ( ! is_object($post) ) {
-            global $post;
-        }
-        $this->post = $post;
-    }
-    
-    protected 
-    function clean_up( $sequence ) {
-        // erase tags
-        $result = strip_tags($sequence);
-        // erase blanks (except inside quoted strings)
-        $result = preg_replace_callback(
-                $this->e_maybe_quoted, array($this, 'cb_strip_blanks'), $result
-        );
-        // erase comments
-        $result = preg_replace($this->e_comment, '', $result);
         return $result;
     }
 
     /**
-     * Sequence of enzymes' replacements.
+     * @param string $string
      *
-     * @var Sequence
+     * @return mixed|string
      */
-    protected $replacements;
-
     protected
-    function process( $sequence ) {
-        $sequence = $this->clean_up($sequence);
-        $there_is_an_enzyme = preg_match($this->e_pathway2, '|' . $sequence);
-        if ( ! $there_is_an_enzyme ) {
-            $result = '{[' . $sequence . ']}';
-        } else {
-            $this->sequence_output = '';
-            $matches['rest'] = $sequence;
-            while (preg_match($this->e_pathway1, $matches['rest'], $matches)) {
-                $this->default_empty($matches, 'rest');
-                $this->catalyze($matches);
-            }
-            $result = $this->sequence_output;
+    function unquote( $string )
+    {
+        $result = substr($string, 1, -1);  // unwrap from quotes
+        $result = str_replace('\\=', '=', $result);  // revert escaped quotes
+        return $result;
+    }
+
+    /**
+     * @param WP_Post $post_object
+     * @param array   $matches
+     *
+     * @return string|array
+     */
+    protected
+    function wp_custom_field( $post_object, array $matches )
+    {
+        $this->default_empty($matches, 'field', 'string');
+        extract($matches);
+        /* @var $field string */
+        /* @var $string string */
+        if ( $string ) {
+            $field = $this->unquote($field);
+        }
+        $values = get_post_meta($post_object->ID, $field);
+        $result = count($values) == 1
+                ? $values[0]
+                : (count($values) == 0
+                        ? null
+                        : $values);
+        return $result;
+    }
+
+    /**
+     * @param WP_Post $post_object
+     *
+     * @return WP_User
+     */
+    protected
+    function wp_author( $post_object )
+    {
+        $id = $post_object->post_author;
+        $result = get_user_by('id', $id);
+        return $result;
+    }
+
+    /**
+     * @param array $matches
+     *
+     * @return array|null
+     */
+    protected
+    function do_execution( array $matches )
+    {
+        $this->default_empty($matches, 'execution', 'item', 'post', 'field', 'num_args');
+        extract($matches);
+        /* @var $execution string */
+        /* @var $item string */
+        /* @var $post string */
+        /* @var $field string */
+        /* @var $num_args string */
+        $num_args = (int) $num_args;
+        switch (true) {
+            case (strpos($execution, 'array(') === 0):
+                if ( 0 == $num_args ) {
+                    break;
+                }
+                $result = $this->catalyzed->pop($num_args);
+                break;
+            case (strpos($execution, 'hash(') === 0):
+                if ( 0 == $num_args ) {
+                    break;
+                }
+                $result = array();
+                $arguments = $this->catalyzed->pop(2 * $num_args);
+                for ($i = 0, $i_top = 2 * $num_args; $i < $i_top; $i += 2) {
+                    $key = $arguments[$i];
+                    $value = $arguments[$i + 1];
+                    $result[$key] = $value;
+                }
+                break;
+            case ($item != ''):
+                $post_object = $this->wp_post($post);
+                $code = $this->wp_custom_field($post_object, $field);
+                // We allow PHP execution by default, and optionally some HTML code properly unwrapped off PHP tags.
+                $arguments = $num_args > 0
+                        ? $this->catalyzed->pop($num_args)
+                        : array();
+                list($result,) = $this->safe_eval($code, $arguments);
+                break;
+            default:
+                $result = null;
+                break;
         }
         return $result;
     }
-    
-    public
-    function metabolism( $content, $post = null )
+
+    /**
+     * @param array $matches
+     *
+     * @return null|string
+     */
+    protected
+    function do_transclusion( array $matches )
     {
-        if ( ! $this->there_is_a_sequence($content, $matches) ) {
+        $this->default_empty($matches, 'transclusion', 'item', 'post', 'field', 'attribute');
+        extract($matches);
+        /* @var $transclusion string */
+        /* @var $item string */
+        /* @var $post string */
+        /* @var $field string */
+        /* @var $attribute string */
+        $post_object = $this->wp_post($post);
+        switch (true) {
+            case (strpos($transclusion, '~author:') !== false):
+                $user_object = $this->wp_author($post_object);
+                $output = @$user_object->$attribute;  // @link http://codex.wordpress.org/Function_Reference/get_userdata
+                break;
+            case ($attribute != ''):
+                $output = @$post_object->$attribute;  // @link http://codex.wordpress.org/Class_Reference/WP_Post
+                break;
+            case ($item != ''):
+                $code = $this->wp_custom_field($post_object, $field);
+                // We allow HTML transclusion by default, and optionally some PHP code properly wrapped into PHP tags.
+                list(, $output) = $this->safe_eval(" ?>$code<?php ");
+                break;
+            default:
+                $output = null;
+                break;
+        }
+        return $output;
+    }
+
+    /**
+     * @param array $matches
+     *
+     * @return string
+     */
+    protected
+    function strip_blanks( array $matches )
+    {
+        list(, $before_string, $string, $whatever) = $matches;
+        $outside = $string
+                ? $before_string
+                : $whatever;
+        $result = preg_replace($this->e_blank, '', $outside) . $string;
+        return $result;
+    }
+
+    /**
+     * @param string $content
+     * @param array  $matches
+     *
+     * @return bool
+     */
+    protected
+    function there_is_an_injection( $content, array &$matches )
+    {
+        $result = false !== strpos($content, '{[') && preg_match($this->find_injection, $content, $matches);
+        return $result;
+    }
+
+    protected
+    function clean_up( $sequence )
+    {
+        $result = $sequence;
+
+        // erase comments
+        $result = preg_replace($this->e_comment, '', $result);
+
+        // erase blanks (except inside strings)
+        $result = preg_replace_callback($this->find_string, array($this, 'strip_blanks'), $result);
+
+        // erase backslashes from escaped injection delimiters
+        $result = preg_replace($this->e_escaped_injection_delimiter, '$1', $result);
+
+        return $result;
+    }
+
+    /**
+     * Sequence of catalyzed enzymes, which are meant to be used as arguments for other enzymes.
+     *
+     * @var Sequence
+     */
+    protected $catalyzed;
+
+    /**
+     * @param string $could_be_sequence
+     *
+     * @return array|null|string
+     */
+    protected
+    function process( $could_be_sequence )
+    {
+        $sequence = $this->clean_up($could_be_sequence);
+        $there_are_only_chained_enzymes = preg_match($this->find_sequence_valid, '|' . $sequence);
+        if ( ! $there_are_only_chained_enzymes ) {
+            $result = '{[' . $sequence . ']}';  // like if it had been escaped...
+        } else {
+            $this->catalyzed = new Sequence();
+            $rest = $sequence;
+            while (preg_match($this->find_sequence_start, $rest, $matches)) {
+                $this->default_empty($matches, 'execution', 'transclusion', 'literal', 'string', 'number', 'rest');
+                extract($matches);
+                /* @var $execution string */
+                /* @var $transclusion string */
+                /* @var $literal string */
+                /* @var $string string */
+                /* @var $number string */
+                /* @var $rest string */
+                switch (true) {
+                    case $execution != '':
+                        $argument = $this->do_execution($matches);
+                        break;
+                    case $transclusion != '':
+                        $argument = $this->do_transclusion($matches);
+                        break;
+                    case $literal != '':
+                        $argument = $string
+                                ? $this->unquote($string)
+                                : floatval($number);
+                        break;
+                    default:
+                        $argument = null;
+                        break;
+                }
+                $this->catalyzed->push($argument);
+            }
+            $result = $this->catalyzed->peek();
+        }
+        return $result;
+    }
+
+    /**
+     * @param string $content
+     * @param null   $default_post
+     *
+     * @return array|null|string
+     */
+    public
+    function metabolize( $content, $default_post = null )
+    {
+        if ( ! $this->there_is_an_injection($content, $matches) ) {
             return $content;
         }
-        $this->init($post);
+        $this->post = is_object($default_post)
+                ? $default_post
+                : get_post();
+        $this->new_content = '';
         do {
-            $this->default_empty($matches, 'before', 'sequence', 'after');
-            extract($matches); /* @var $before string */ /* @var $sequence string */ /* @var $after string */
-            $do_not_process = '{' == substr($before, -1);
-            if ( $do_not_process ) {
-                $result = '[' . $sequence . ']}';
+            $this->default_empty($matches, 'before', 'could_be_sequence', 'after');
+            extract($matches);
+            /* @var $before string */
+            /* @var $could_be_sequence string */
+            /* @var $after string */
+            $escaped_injection = '{' == substr($before, -1);  // "{{[ .. ]}"
+            if ( $escaped_injection ) {
+                $result = '[' . $could_be_sequence . ']}';  // consume one brace of the pair
             } else {
-                $result = $this->process($sequence);
+                $result = $this->process($could_be_sequence);
             }
             $this->new_content .= $before . $result;
-        } while ($this->there_is_a_sequence($after, $matches));
+        } while ($this->there_is_an_injection($after, $matches));
         $result = $this->new_content . $after;
-        
+
         return $result;
     }
 }

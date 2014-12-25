@@ -1,25 +1,16 @@
 <?php
 /*
 Plugin Name: Enzymes
-Plugin URI: http://noteslog.com/enzymes/
-Description: Retrieve properties and custom fields of posts, pages, and authors, right into the visual editor of posts and pages, and everywhere else.
+Plugin URI: http://wordpress.org/extend/plugins/enzymes/
+Description: Enrich your content with custom fields and properties.
+Version: 3.0.0
 Author: Andrea Ercolino
-Version: 2.3
-Author URI: http://noteslog.com
+Author URI: http://andowebsit.es/blog/noteslog.com/
+License: GPLv2 or later
 */
 
-require_once 'lib/Enzymes.php';
+define('ENZYMES_FILENAME', __FILE__);
+require 'EnzymesPlugin.php';
 
-$enzymes = new Enzymes();
-add_filter( 'wp_title',        array( &$enzymes, 'metabolism' ), 10, 2 );
-add_filter( 'the_title',       array( &$enzymes, 'metabolism' ), 10, 2 );
-add_filter( 'the_title_rss',   array( &$enzymes, 'metabolism' ), 10, 2 );
-add_filter( 'the_excerpt',     array( &$enzymes, 'metabolism' ), 10, 2 );
-add_filter( 'the_excerpt_rss', array( &$enzymes, 'metabolism' ), 10, 2 );
-add_filter( 'the_content',     array( &$enzymes, 'metabolism' ), 10, 2 );
-
-function metabolize( $content, $post = '' ) 
-{
-	global $enzymes;
-	echo $enzymes->metabolism( $content, $post );
-}
+//just comment the following line if you need to temporarily disable this plugin
+$enzymesPlugin = new EnzymesPlugin();
