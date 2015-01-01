@@ -47,6 +47,14 @@ class Enzymes3
     protected $e_string;
 
     /**
+     * Due to the fact that ending empty groups are not returned by preg matching,
+     * we count the expected matches for e_string and adjust the actual $matches.
+     *
+     * @var integer
+     */
+    protected $count_matches_for_e_string;
+
+    /**
      * Regular expression for matching PHP multiple lines comment.
      *
      * @var Ando_Regex
@@ -119,7 +127,7 @@ class Enzymes3
          */
         $grammar = array(
                 'number'       => '(?<number>\d+(\.\d+)?)',
-                'string'       => '(?<string>' . Ando_Regex::pattern_quoted_string('=', '=') . ')',
+                'string'       => '(?<string>' . Ando_Regex::pattern_quoted_string('=', '=') . ')',  // @=[^=\\]*(?:\\.[^=\\]*)*=@
                 'literal'      => '(?<literal>$number|$string)',
 
                 'slug'         => '(?<slug>[\w+~-]+)',
@@ -138,7 +146,7 @@ class Enzymes3
         $result = array();
         foreach ($grammar as $symbol => $rule) {
             $regex = new Ando_Regex($rule);
-            $result[$symbol] = $regex->interpolate($grammar);
+            $result[$symbol] = $regex->interpolate($result);
         }
         $this->grammar = $result;
     }
@@ -168,7 +176,7 @@ class Enzymes3
     function init_e_sequence_valid()
     {
         // Notice that sequence_valid matches all the enzymes of the sequence at once.
-        $sequence_valid = new Ando_Regex('^(?:\|$enzyme)+$', '@@');
+        $sequence_valid = new Ando_Regex(Ando_Regex::option_same_name() . '^(?:\|$enzyme)+$', '@@');
         $sequence_valid->interpolate(array(
                                              'enzyme' => $this->grammar['enzyme'],
                                      ));
@@ -182,12 +190,14 @@ class Enzymes3
     function init_e_sequence_start()
     {
         $rest = new Ando_Regex('(?:\|(?<rest>.+))');
-        $sequence_start = new Ando_Regex('^$enzyme$rest?$');
+        $sequence_start = new Ando_Regex(Ando_Regex::option_same_name() . '^$enzyme$rest?$', '@@');
         $sequence_start->interpolate(array(
                                              'enzyme' => $this->grammar['enzyme'],
                                              'rest'   => $rest,
                                      ));
-        $this->e_sequence_start = $sequence_start->wrapper_set('@@');
+        $this->e_sequence_start = $sequence_start;
+        // fwrite(STDERR, "\n\n" . print_r($sequence_start . '', TRUE));
+        // --> @^(?<enzyme>(?:(?<literal>(?<number>\d+(\.\d+)?)|(?<string>=[^=\\]*(?:\\.[^=\\]*)*=))|(?<transclusion>(?<item>(?<post>\d+|\@(?<slug>[\w+~-]+)|)\.(?<field>[\w-]+|(?<string>=[^=\\]*(?:\\.[^=\\]*)*=)))|(?<post>\d+|\@(?<slug>[\w+~-]+)|)~author:(?<attribute>\w+)|(?<post>\d+|\@(?<slug>[\w+~-]+)|):(?<attribute>\w+))|(?<execution>(?:\barray\b|\bhash\b|(?<item>(?<post>\d+|\@(?<slug>[\w+~-]+)|)\.(?<field>[\w-]+|(?<string>=[^=\\]*(?:\\.[^=\\]*)*=))))\((?<num_args>\d*)\))))(?:\|(?<rest>.+))?$@
     }
 
     /**
@@ -196,9 +206,9 @@ class Enzymes3
     protected
     function init_e_string()
     {
-        $maybe_quoted = new Ando_Regex('(.*?)($quoted)|(.+)', '@@s');
+        $maybe_quoted = new Ando_Regex('(?<before_string>.*?)$string|(?<anything_else>.+)', '@@s');
         $maybe_quoted->interpolate(array(
-                                           'quoted' => $this->grammar['string'],
+                                           'string' => $this->grammar['string'],
                                    ));
         $this->e_string = $maybe_quoted;
     }
@@ -214,7 +224,7 @@ class Enzymes3
         $this->init_e_sequence_start();
         $this->init_e_string();
 
-        $this->e_comment = new Ando_Regex('(\/\*.*?\*\/)', '@@');
+        $this->e_comment = new Ando_Regex('\/\*.*?\*\/', '@@s');
         // for some reason WP introduces some C2 (hex) chars when writing a post...
         $this->e_blank = new Ando_Regex('(?:\s|\xc2)+', '@@');
         $this->e_escaped_injection_delimiter = new Ando_Regex('\\\\([{[\]}])', '@@');
@@ -261,7 +271,7 @@ class Enzymes3
     /**
      * @param array $matches
      *
-     * @return WP_Post
+     * @return null|WP_Post
      */
     protected
     function wp_post( array $matches )
@@ -433,24 +443,15 @@ class Enzymes3
     protected
     function strip_blanks( array $matches )
     {
-        list(, $before_string, $string, $whatever) = $matches;
+        $this->default_empty($matches, 'before_string', 'string', 'anything_else');
+        extract($matches);
+        /* @var $before_string string */
+        /* @var $string string */
+        /* @var $anything_else string */
         $outside = $string
                 ? $before_string
-                : $whatever;
+                : $anything_else;
         $result = preg_replace($this->e_blank, '', $outside) . $string;
-        return $result;
-    }
-
-    /**
-     * @param string $content
-     * @param array  $matches
-     *
-     * @return bool
-     */
-    protected
-    function there_is_an_injection( $content, &$matches )
-    {
-        $result = false !== strpos($content, '{[') && preg_match($this->e_injection, $content, $matches);
         return $result;
     }
 
@@ -482,7 +483,7 @@ class Enzymes3
         $sequence = $this->clean_up($could_be_sequence);
         $there_are_only_chained_enzymes = preg_match($this->e_sequence_valid, '|' . $sequence);
         if ( ! $there_are_only_chained_enzymes ) {
-            $result = '{[' . $sequence . ']}';  // like if it had been escaped...
+            $result = '{[' . $could_be_sequence . ']}';  // skip this injection like if it had been escaped...
         } else {
             $this->catalyzed = new Sequence();
             $rest = $sequence;
@@ -513,8 +514,21 @@ class Enzymes3
                 }
                 $this->catalyzed->push($argument);
             }
-            $result = $this->catalyzed->peek();
+            list($result) = $this->catalyzed->peek();
         }
+        return $result;
+    }
+
+    /**
+     * @param string $content
+     * @param array  $matches
+     *
+     * @return bool
+     */
+    protected
+    function there_is_an_injection( $content, &$matches )
+    {
+        $result = false !== strpos($content, '{[') && preg_match($this->e_injection, $content, $matches);
         return $result;
     }
 
