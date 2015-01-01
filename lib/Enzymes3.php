@@ -360,8 +360,6 @@ class Enzymes3
         extract($matches);
         /* @var $execution string */
         /* @var $item string */
-        /* @var $post string */
-        /* @var $field string */
         /* @var $num_args string */
         $num_args = (int) $num_args;
         switch (true) {
@@ -384,8 +382,8 @@ class Enzymes3
                 }
                 break;
             case ($item != ''):
-                $post_object = $this->wp_post($post);
-                $code = $this->wp_custom_field($post_object, $field);
+                $post_object = $this->wp_post($matches);
+                $code = $this->wp_custom_field($post_object, $matches);
                 // We allow PHP execution by default, and optionally some HTML code properly unwrapped off PHP tags.
                 $arguments = $num_args > 0
                         ? $this->catalyzed->pop($num_args)

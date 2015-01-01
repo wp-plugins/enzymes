@@ -231,7 +231,64 @@ class Enzymes3Test
         $this->assertEquals($content2, $enzymes->metabolize($content1, $post));
     }
 
-    function test_a_literal_at_the_end_wins() {
+    function test_a_final_literal_wins() {
+        $post_id = $this->factory->post->create();
+        add_post_meta($post_id, 'sample-name', 'sample-value');
+        $post = get_post($post_id);
+
+        $enzymes = new Enzymes3();
+
+        $content1 = 'Before "{[ .sample-name | 123 ]}" and after.';
+        $content2 = 'Before "123" and after.';
+        $this->assertEquals($content2, $enzymes->metabolize($content1, $post));
+    }
+
+    function test_transcluded_from_another_post() {
+        $post_1_id = $this->factory->post->create();
+        add_post_meta($post_1_id, 'sample-name', 'sample value 1');
+        $post_1 = get_post($post_1_id);
+
+        $post_2_id = $this->factory->post->create();
+        add_post_meta($post_2_id, 'sample-name', 'sample value 2');
+
+        $enzymes = new Enzymes3();
+
+        $content1 = 'Before "{[ ' . $post_2_id . '.sample-name ]}" and after.';
+        $content2 = 'Before "sample value 2" and after.';
+        $this->assertEquals($content2, $enzymes->metabolize($content1, $post_1));
+    }
+
+    function test_transcluded_from_another_post_by_slug() {
+        $post_1_id = $this->factory->post->create();
+        add_post_meta($post_1_id, 'sample-name', 'sample value 1');
+        $post_1 = get_post($post_1_id);
+
+        $post_2_id = $this->factory->post->create(array('post_title' => 'This is the target post.'));
+        add_post_meta($post_2_id, 'sample-name', 'sample value 2');
+
+        $enzymes = new Enzymes3();
+
+        $content1 = 'Before "{[ @this-is-the-target-post.sample-name ]}" and after.';
+        $content2 = 'Before "sample value 2" and after.';
+        $this->assertEquals($content2, $enzymes->metabolize($content1, $post_1));
+    }
+
+    function test_executed_with_no_arguments() {
+        $post_id = $this->factory->post->create();
+        add_post_meta($post_id, 'sample-name', '
+        $a = 100;
+        $b = 20;
+        $c = 3;
+        $result = $a + $b + $c;
+        return $result;
+        ');
+        $post = get_post($post_id);
+
+        $enzymes = new Enzymes3();
+
+        $content1 = 'Before "{[ =whatever here= | .sample-name() ]}" and after.';
+        $content2 = 'Before "123" and after.';
+        $this->assertEquals($content2, $enzymes->metabolize($content1, $post));
     }
 
 }
