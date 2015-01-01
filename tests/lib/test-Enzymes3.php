@@ -210,6 +210,28 @@ class Enzymes3Test
         $this->assertEquals($content2, $enzymes->metabolize($content1));
     }
 
+    function test_literal_string_is_replaced_unquoted() {
+        $enzymes = new Enzymes3();
 
+        $content1 = 'This is something before {[ ="Hello World!"= ]} and in between {[ ="How are you today?"= ]} but this is after.';
+        $content2 = 'This is something before "Hello World!" and in between "How are you today?" but this is after.';
+        $this->assertEquals($content2, $enzymes->metabolize($content1));
+    }
+
+    function test_transcluded_from_current_post() {
+        $post_id = $this->factory->post->create();
+        add_post_meta($post_id, 'sample-name', 'sample-value');
+        add_post_meta($post_id, 'sample name', 'sample value');
+        $post = get_post($post_id);
+
+        $enzymes = new Enzymes3();
+
+        $content1 = 'Before "{[ .sample-name ]}" between "{[ .=sample name= ]}" and after.';
+        $content2 = 'Before "sample-value" between "sample value" and after.';
+        $this->assertEquals($content2, $enzymes->metabolize($content1, $post));
+    }
+
+    function test_a_literal_at_the_end_wins() {
+    }
 
 }

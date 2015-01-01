@@ -411,10 +411,8 @@ class Enzymes3
         extract($matches);
         /* @var $transclusion string */
         /* @var $item string */
-        /* @var $post string */
-        /* @var $field string */
         /* @var $attribute string */
-        $post_object = $this->wp_post($post);
+        $post_object = $this->wp_post($matches);
         switch (true) {
             case (strpos($transclusion, '~author:') !== false):
                 $user_object = $this->wp_author($post_object);
@@ -424,7 +422,7 @@ class Enzymes3
                 $output = @$post_object->$attribute;  // @link http://codex.wordpress.org/Class_Reference/WP_Post
                 break;
             case ($item != ''):
-                $code = $this->wp_custom_field($post_object, $field);
+                $code = $this->wp_custom_field($post_object, $matches);
                 // We allow HTML transclusion by default, and optionally some PHP code properly wrapped into PHP tags.
                 list(, $output) = $this->safe_eval(" ?>$code<?php ");
                 break;
