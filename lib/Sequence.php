@@ -4,8 +4,8 @@ class Sequence {
     protected $store = array();
 
     public
-    function push( $item ) {
-        $items = is_array($item) ? $item : array($item);
+    function push() {
+        $items = func_get_args();
         array_splice($this->store, count($this->store), 0, $items);
         $result = count($this->store);
         return $result;

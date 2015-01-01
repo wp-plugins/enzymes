@@ -4,6 +4,14 @@ require_once 'Ando/Regex.php';
 
 class Enzymes3
 {
+    public $debug_on = false;
+
+    public
+    function debug_print( $something ) {
+        if (! $this->debug_on) return;
+        fwrite(STDERR, "\n" . print_r($something, true) . "\n");
+    }
+
     /**
      * The post which the content belongs to.
      * 
@@ -96,8 +104,9 @@ class Enzymes3
      *   sequence := enzyme ("|" enzyme)*
      *   enzyme   := literal | transclusion | execution
      *
-     * literal   := number | string
+     * literal   := number | str_literal
      *   number  := \d+(\.\d+)?
+     *   str_literal := string
      *   string  := "=" <a string where "=", "|", "]}", "\"  are escaped by a prefixed "\"> "="
      *
      * transclusion := item | post "~author:" attribute | post ":" attribute
@@ -128,7 +137,8 @@ class Enzymes3
         $grammar = array(
                 'number'       => '(?<number>\d+(\.\d+)?)',
                 'string'       => '(?<string>' . Ando_Regex::pattern_quoted_string('=', '=') . ')',  // @=[^=\\]*(?:\\.[^=\\]*)*=@
-                'literal'      => '(?<literal>$number|$string)',
+                'str_literal'  => '(?<str_literal>$string)',
+                'literal'      => '(?<literal>$number|$str_literal)',
 
                 'slug'         => '(?<slug>[\w+~-]+)',
                 'attribute'    => '(?<attribute>\w+)',
@@ -196,8 +206,6 @@ class Enzymes3
                                              'rest'   => $rest,
                                      ));
         $this->e_sequence_start = $sequence_start;
-        // fwrite(STDERR, "\n\n" . print_r($sequence_start . '', TRUE));
-        // --> @^(?<enzyme>(?:(?<literal>(?<number>\d+(\.\d+)?)|(?<string>=[^=\\]*(?:\\.[^=\\]*)*=))|(?<transclusion>(?<item>(?<post>\d+|\@(?<slug>[\w+~-]+)|)\.(?<field>[\w-]+|(?<string>=[^=\\]*(?:\\.[^=\\]*)*=)))|(?<post>\d+|\@(?<slug>[\w+~-]+)|)~author:(?<attribute>\w+)|(?<post>\d+|\@(?<slug>[\w+~-]+)|):(?<attribute>\w+))|(?<execution>(?:\barray\b|\bhash\b|(?<item>(?<post>\d+|\@(?<slug>[\w+~-]+)|)\.(?<field>[\w-]+|(?<string>=[^=\\]*(?:\\.[^=\\]*)*=))))\((?<num_args>\d*)\))))(?:\|(?<rest>.+))?$@
     }
 
     /**
@@ -484,12 +492,12 @@ class Enzymes3
             $this->catalyzed = new Sequence();
             $rest = $sequence;
             while (preg_match($this->e_sequence_start, $rest, $matches)) {
-                $this->default_empty($matches, 'execution', 'transclusion', 'literal', 'string', 'number', 'rest');
+                $this->default_empty($matches, 'execution', 'transclusion', 'literal', 'str_literal', 'number', 'rest');
                 extract($matches);
                 /* @var $execution string */
                 /* @var $transclusion string */
                 /* @var $literal string */
-                /* @var $string string */
+                /* @var $str_literal string */
                 /* @var $number string */
                 /* @var $rest string */
                 switch (true) {
@@ -500,8 +508,8 @@ class Enzymes3
                         $argument = $this->do_transclusion($matches);
                         break;
                     case $literal != '':
-                        $argument = $string
-                                ? $this->unquote($string)
+                        $argument = $str_literal
+                                ? $this->unquote($str_literal)
                                 : floatval($number);
                         break;
                     default:

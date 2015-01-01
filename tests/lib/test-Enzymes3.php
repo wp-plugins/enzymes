@@ -291,4 +291,72 @@ class Enzymes3Test
         $this->assertEquals($content2, $enzymes->metabolize($content1, $post));
     }
 
+    function test_executed_with_one_argument() {
+        $post_id = $this->factory->post->create();
+        add_post_meta($post_id, 'sample-name', '
+        list($a) = $arguments;
+        $b = 20;
+        $c = 3;
+        $result = $a + $b + $c;
+        return $result;
+        ');
+        $post = get_post($post_id);
+
+        $enzymes = new Enzymes3();
+
+        $content1 = 'Before "{[ =whatever here= | 100 | .sample-name(1) ]}" and after.';
+        $content2 = 'Before "123" and after.';
+        $this->assertEquals($content2, $enzymes->metabolize($content1, $post));
+    }
+
+    function test_executed_with_many_arguments() {
+        $post_id = $this->factory->post->create();
+        add_post_meta($post_id, 'sample-name', '
+        list($a, $b, $c) = $arguments;
+        $result = $a * $b - $c;
+        return $result;
+        ');
+        $post = get_post($post_id);
+
+        $enzymes = new Enzymes3();
+
+        $content1 = 'Before "{[ =whatever here= | 100 | 20 | 3 | .sample-name(3) ]}" and after.';
+        $content2 = 'Before "1997" and after.';
+        $this->assertEquals($content2, $enzymes->metabolize($content1, $post));
+    }
+
+    function test_executed_with_an_array_argument() {
+        $post_id = $this->factory->post->create();
+        add_post_meta($post_id, 'sample-name', '
+        list($a, $bc) = $arguments;
+        $result = $a * array_sum($bc);
+        return $result;
+        ');
+        $post = get_post($post_id);
+
+        $enzymes = new Enzymes3();
+
+        $content1 = 'Before "{[ =whatever here= | 100 | 20 | 3 | array(2) | .sample-name(2) ]}" and after.';
+        $content2 = 'Before "2300" and after.';
+        $this->assertEquals($content2, $enzymes->metabolize($content1, $post));
+    }
+
+    function test_executed_with_a_hash_argument() {
+        $post_id = $this->factory->post->create();
+        add_post_meta($post_id, 'sample-name', '
+        list($hash) = $arguments;
+        $result = $hash["a hundred"] * array_sum($hash["twenty and three"]);
+        return $result;
+        ');
+        $post = get_post($post_id);
+
+        $enzymes = new Enzymes3();
+
+        $content1 = 'Before "{[ =whatever here= | =a hundred= | 100 | =twenty and three= | 20 | 3 | array(2) | hash(2) | .sample-name(1) ]}" and after.';
+        $content2 = 'Before "2300" and after.';
+        $enzymes->debug_on = true;
+        $this->assertEquals($content2, $enzymes->metabolize($content1, $post));
+        $enzymes->debug_on = false;
+    }
+
 }
