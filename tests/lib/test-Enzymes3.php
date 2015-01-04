@@ -88,7 +88,7 @@ class Enzymes3Test
     {
         // case when the initial array is not empty
         $values = array(
-                'one'   => 1,
+                'one' => 1,
                 'three' => 3,
         );
         $this->call_method('default_empty', array(&$values, 'one', 'two'));
@@ -448,9 +448,9 @@ class Enzymes3Test
             $user_data[$key] = $user->$key;
         }
         $user_data = "(" . implode(")(", $user_data) . ")";
-        $enzymes->debug_on = true;
-        $enzymes->debug_print($user_data);
-        $enzymes->debug_on = false;
+//        $enzymes->debug_on = true;
+//        $enzymes->debug_print($user_data);
+//        $enzymes->debug_on = false;
 
         $post_id = $this->factory->post->create(array('post_author' => $user->ID));
         $code = '
@@ -464,6 +464,62 @@ class Enzymes3Test
         $content1 = "Before \"{[ $attrs_seq | array($attrs_count) | .implode(1) ]}\" and after.";
         $content2 = "Before \"$user_data\" and after.";
         $this->assertEquals($content2, $enzymes->metabolize($content1, $post));
+    }
+
+    function test_transcluded_author_from_current_post()
+    {
+        $user_id = $this->factory->user->create();
+        add_user_meta($user_id, 'sample-name', 'sample-value');
+        add_user_meta($user_id, 'sample name', 'sample value');
+        $post_id = $this->factory->post->create(array('post_author' => $user_id));
+        $post = get_post($post_id);
+
+        $enzymes = new Enzymes3();
+
+        $content1 = 'Before "{[ /author.sample-name ]}" between "{[ /author.=sample name= ]}" and after.';
+        $content2 = 'Before "sample-value" between "sample value" and after.';
+//        $enzymes->debug_on = true;
+        $this->assertEquals($content2, $enzymes->metabolize($content1, $post));
+//        $enzymes->debug_on = false;
+    }
+
+    function test_transcluded_author_from_another_post()
+    {
+        $user_1_id = $this->factory->user->create();
+        add_user_meta($user_1_id, 'sample-name', 'sample value 1');
+        $post_1_id = $this->factory->post->create(array('post_author' => $user_1_id));
+        $post_1 = get_post($post_1_id);
+
+        $user_2_id = $this->factory->user->create();
+        add_user_meta($user_2_id, 'sample-name', 'sample value 2');
+        $post_2_id = $this->factory->post->create(array('post_author' => $user_2_id));
+
+        $enzymes = new Enzymes3();
+
+        $content1 = 'Before "{[ ' . $post_2_id . '/author.sample-name ]}" and after.';
+        $content2 = 'Before "sample value 2" and after.';
+        $this->assertEquals($content2, $enzymes->metabolize($content1, $post_1));
+    }
+
+    function test_transcluded_author_from_another_post_by_slug()
+    {
+        $user_1_id = $this->factory->user->create();
+        add_user_meta($user_1_id, 'sample-name', 'sample value 1');
+        $post_1_id = $this->factory->post->create(array('post_author' => $user_1_id));
+        $post_1 = get_post($post_1_id);
+
+        $user_2_id = $this->factory->user->create();
+        add_user_meta($user_2_id, 'sample-name', 'sample value 2');
+        $post_2_id = $this->factory->post->create(array(
+                                                          'post_author' => $user_2_id,
+                                                          'post_title'  => 'This is the target post.'
+                                                  ));
+
+        $enzymes = new Enzymes3();
+
+        $content1 = 'Before "{[ @this-is-the-target-post/author.sample-name ]}" and after.';
+        $content2 = 'Before "sample value 2" and after.';
+        $this->assertEquals($content2, $enzymes->metabolize($content1, $post_1));
     }
 
 }
