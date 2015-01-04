@@ -508,6 +508,84 @@ class Enzymes3
     }
 
     /**
+     * @param string  $post_item
+     * @param WP_Post $post_object
+     *
+     * @return string
+     * @throws Ando_Exception
+     */
+    protected
+    function transclude_post_item( $post_item, $post_object )
+    {
+        $this->debug_print('transcluding post_item');
+        $expression = $this->grammar['post_item']->wrapper_set('@@')
+                                                 ->expression(true);
+        preg_match($expression, $post_item, $matches);
+        $code = $this->wp_post_field($post_object, $matches);
+        // We allow HTML transclusion by default, and optionally some PHP code properly wrapped into PHP tags.
+        list(, $output) = $this->safe_eval(" ?>$code<?php ");
+        return $output;
+    }
+
+    /**
+     * @param string  $post_attr
+     * @param WP_Post $post_object
+     *
+     * @return mixed
+     * @throws Ando_Exception
+     */
+    protected
+    function transclude_post_attr( $post_attr, $post_object )
+    {
+        $this->debug_print('transcluding post_attr');
+        $expression = $this->grammar['post_attr']->wrapper_set('@@')
+                                                 ->expression(true);
+        preg_match($expression, $post_attr, $matches);
+        $result = $this->wp_post_attribute($post_object, $matches);
+        return $result;
+    }
+
+    /**
+     * @param string  $author_item
+     * @param WP_Post $post_object
+     *
+     * @return string
+     * @throws Ando_Exception
+     */
+    protected
+    function transclude_author_item( $author_item, $post_object )
+    {
+        $this->debug_print('transcluding author_item');
+        $expression = $this->grammar['author_item']->wrapper_set('@@')
+                                                   ->expression(true);
+        preg_match($expression, $author_item, $matches);
+        $user_object = $this->wp_author($post_object);
+        $code = $this->wp_user_field($user_object, $matches);
+        // We allow HTML transclusion by default, and optionally some PHP code properly wrapped into PHP tags.
+        list(, $output) = $this->safe_eval(" ?>$code<?php ");
+        return $output;
+    }
+
+    /**
+     * @param string  $author_attr
+     * @param WP_Post $post_object
+     *
+     * @return mixed
+     * @throws Ando_Exception
+     */
+    protected
+    function transclude_author_attr( $author_attr, $post_object )
+    {
+        $this->debug_print('transcluding author_attr');
+        $expression = $this->grammar['author_attr']->wrapper_set('@@')
+                                                   ->expression(true);
+        preg_match($expression, $author_attr, $matches);
+        $user_object = $this->wp_author($post_object);
+        $result = $this->wp_user_attribute($user_object, $matches);
+        return $result;
+    }
+
+    /**
      * @param array $matches
      *
      * @return null|string
@@ -524,38 +602,16 @@ class Enzymes3
         $post_object = $this->wp_post($matches);
         switch (true) {
             case ($post_item != ''):
-                $this->debug_print('transcluding post_item');
-                $expression = $this->grammar['post_item']->wrapper_set('@@')
-                                                         ->expression(true);
-                preg_match($expression, $post_item, $matches);
-                $code = $this->wp_post_field($post_object, $matches);
-                // We allow HTML transclusion by default, and optionally some PHP code properly wrapped into PHP tags.
-                list(, $output) = $this->safe_eval(" ?>$code<?php ");
+                $output = $this->transclude_post_item($post_item, $post_object);
                 break;
             case ($post_attr != ''):
-                $this->debug_print('transcluding post_attr');
-                $expression = $this->grammar['post_attr']->wrapper_set('@@')
-                                                         ->expression(true);
-                preg_match($expression, $post_attr, $matches);
-                $output = $this->wp_post_attribute($post_object, $matches);
+                $output = $this->transclude_post_attr($post_attr, $post_object);
                 break;
             case ($author_item != ''):
-                $this->debug_print('transcluding author_item');
-                $expression = $this->grammar['author_item']->wrapper_set('@@')
-                                                           ->expression(true);
-                preg_match($expression, $author_item, $matches);
-                $user_object = $this->wp_author($post_object);
-                $code = $this->wp_user_field($user_object, $matches);
-                // We allow HTML transclusion by default, and optionally some PHP code properly wrapped into PHP tags.
-                list(, $output) = $this->safe_eval(" ?>$code<?php ");
+                $output = $this->transclude_author_item($author_item, $post_object);
                 break;
             case ($author_attr != ''):
-                $this->debug_print('transcluding author_attr');
-                $expression = $this->grammar['author_attr']->wrapper_set('@@')
-                                                           ->expression(true);
-                preg_match($expression, $author_attr, $matches);
-                $user_object = $this->wp_author($post_object);
-                $output = $this->wp_user_attribute($user_object, $matches);
+                $output = $this->transclude_author_attr($author_attr, $post_object);
                 break;
             default:
                 $output = null;
