@@ -534,6 +534,9 @@ class Enzymes3
                 break;
             case ($post_attr != ''):
                 $this->debug_print('transcluding post_attr');
+                $expression = $this->grammar['post_attr']->wrapper_set('@@')
+                                                         ->expression(true);
+                preg_match($expression, $post_attr, $matches);
                 $output = $this->wp_post_attribute($post_object, $matches);
                 break;
             case ($author_item != ''):

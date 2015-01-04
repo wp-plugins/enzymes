@@ -88,7 +88,7 @@ class Enzymes3Test
     {
         // case when the initial array is not empty
         $values = array(
-                'one' => 1,
+                'one'   => 1,
                 'three' => 3,
         );
         $this->call_method('default_empty', array(&$values, 'one', 'two'));
@@ -404,7 +404,7 @@ class Enzymes3Test
          */
         $enzymes = new Enzymes3();
 
-        $user_attrs = array(
+        $attrs = array(
             // Properties extracted from the columns of the user table.
             'ID',
             'user_login',
@@ -439,30 +439,30 @@ class Enzymes3Test
             'closedpostboxes_post',
             'metaboxhidden_post',
         );
-        $attrs_seq = ' /author:' . implode(' | /author:', $user_attrs);
-        $attrs_count = count($user_attrs);
+        $attrs_seq = ' /author:' . implode(' | /author:', $attrs);
+        $attrs_count = count($attrs);
 
         $user = $this->factory->user->create_and_get();
-        $user_data = array();
-        foreach ($user_attrs as $key) {
-            $user_data[$key] = $user->$key;
+        $data = array();
+        foreach ($attrs as $key) {
+            $data[$key] = $user->$key;
         }
-        $user_data = "(" . implode(")(", $user_data) . ")";
+        $data = "(" . implode(")(", $data) . ")";
 //        $enzymes->debug_on = true;
-//        $enzymes->debug_print($user_data);
+//        $enzymes->debug_print($data);
 //        $enzymes->debug_on = false;
 
         $post_id = $this->factory->post->create(array('post_author' => $user->ID));
         $code = '
-        list($user_data) = $arguments;
-        $result = "(" . implode(")(", $user_data) . ")";
+        list($data) = $arguments;
+        $result = "(" . implode(")(", $data) . ")";
         return $result;
         ';
         add_post_meta($post_id, 'implode', $code);
         $post = get_post($post_id);
 
         $content1 = "Before \"{[ $attrs_seq | array($attrs_count) | .implode(1) ]}\" and after.";
-        $content2 = "Before \"$user_data\" and after.";
+        $content2 = "Before \"$data\" and after.";
         $this->assertEquals($content2, $enzymes->metabolize($content1, $post));
     }
 
@@ -520,6 +520,66 @@ class Enzymes3Test
         $content1 = 'Before "{[ @this-is-the-target-post/author.sample-name ]}" and after.';
         $content2 = 'Before "sample value 2" and after.';
         $this->assertEquals($content2, $enzymes->metabolize($content1, $post_1));
+    }
+
+    function test_properties()
+    {
+        /*
+         * This test is a bit "strange" because I had to put here the same code that is in the source to make it work.
+         */
+        $enzymes = new Enzymes3();
+
+        $attrs = array(
+            // Properties extracted from the columns of the  table.
+            'ID',
+            'post_author',
+            'post_name',
+            'post_type',
+            'post_title',
+            'post_date',
+            'post_date_gmt',
+            'post_content',
+            'post_excerpt',
+            'post_status',
+            'comment_status',
+            'ping_status',
+            'post_password',
+            'post_parent',
+            'post_modified',
+            'post_modified_gmt',
+            'comment_count',
+            'menu_order',
+            // Properties not documented at http://codex.wordpress.org/Class_Reference/WP_Post
+            'to_ping',
+            'pinged',
+            'post_content_filtered',
+            'guid',
+            'post_mime_type',
+        );
+        $attrs_seq = ':' . implode(' | :', $attrs);
+        $attrs_count = count($attrs);
+
+        $post = $this->factory->post->create_and_get();
+        $data = array();
+        foreach ($attrs as $key) {
+            $data[$key] = $post->$key;
+        }
+        $data = "(" . implode(")(", $data) . ")";
+//        $enzymes->debug_on = true;
+//        $enzymes->debug_print($data);
+//        $enzymes->debug_on = false;
+
+        $post_id = $post->ID;
+        $code = '
+        list($data) = $arguments;
+        $result = "(" . implode(")(", $data) . ")";
+        return $result;
+        ';
+        add_post_meta($post_id, 'implode', $code);
+
+        $content1 = "Before \"{[ $attrs_seq | array($attrs_count) | .implode(1) ]}\" and after.";
+        $content2 = "Before \"$data\" and after.";
+        $this->assertEquals($content2, $enzymes->metabolize($content1, $post));
     }
 
 }
