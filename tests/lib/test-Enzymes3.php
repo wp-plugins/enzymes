@@ -590,4 +590,98 @@ class Enzymes3Test
         $this->assertEquals($content2, $enzymes->metabolize($content1, $post));
     }
 
+    function test_executed_author_with_no_arguments()
+    {
+        $user_id = $this->factory->user->create();
+        add_user_meta($user_id, 'sample-name', '
+        $a = 100;
+        $b = 20;
+        $c = 3;
+        $result = $a + $b + $c;
+        return $result;
+        ');
+        $post_id = $this->factory->post->create(array('post_author' => $user_id));
+        $post = get_post($post_id);
+
+        $enzymes = new Enzymes3();
+
+        $content1 = 'Before "{[ =whatever here= | /author.sample-name() ]}" and after.';
+        $content2 = 'Before "123" and after.';
+        $this->assertEquals($content2, $enzymes->metabolize($content1, $post));
+    }
+
+    function test_executed_author_with_one_argument()
+    {
+        $user_id = $this->factory->user->create();
+        add_user_meta($user_id, 'sample-name', '
+        list($a) = $arguments;
+        $b = 20;
+        $c = 3;
+        $result = $a + $b + $c;
+        return $result;
+        ');
+        $post_id = $this->factory->post->create(array('post_author' => $user_id));
+        $post = get_post($post_id);
+
+        $enzymes = new Enzymes3();
+
+        $content1 = 'Before "{[ =whatever here= | 100 | /author.sample-name(1) ]}" and after.';
+        $content2 = 'Before "123" and after.';
+        $this->assertEquals($content2, $enzymes->metabolize($content1, $post));
+    }
+
+    function test_executed_author_with_many_arguments()
+    {
+        $user_id = $this->factory->user->create();
+        add_user_meta($user_id, 'sample-name', '
+        list($a, $b, $c) = $arguments;
+        $result = $a * $b - $c;
+        return $result;
+        ');
+        $post_id = $this->factory->post->create(array('post_author' => $user_id));
+        $post = get_post($post_id);
+
+        $enzymes = new Enzymes3();
+
+        $content1 = 'Before "{[ =whatever here= | 100 | 20 | 3 | /author.sample-name(3) ]}" and after.';
+        $content2 = 'Before "1997" and after.';
+        $this->assertEquals($content2, $enzymes->metabolize($content1, $post));
+    }
+
+    function test_executed_author_with_an_array_argument()
+    {
+        $user_id = $this->factory->user->create();
+        add_user_meta($user_id, 'sample-name', '
+        list($a, $bc) = $arguments;
+        $result = $a * array_sum($bc);
+        return $result;
+        ');
+        $post_id = $this->factory->post->create(array('post_author' => $user_id));
+        $post = get_post($post_id);
+
+        $enzymes = new Enzymes3();
+
+        $content1 = 'Before "{[ =whatever here= | 100 | 20 | 3 | array(2) | /author.sample-name(2) ]}" and after.';
+        $content2 = 'Before "2300" and after.';
+        $this->assertEquals($content2, $enzymes->metabolize($content1, $post));
+    }
+
+    function test_executed_author_with_a_hash_argument()
+    {
+        $user_id = $this->factory->user->create();
+        add_user_meta($user_id, 'sample-name', '
+        list($hash) = $arguments;
+        $result = $hash["a hundred"] * array_sum($hash["twenty and three"]);
+        return $result;
+        ');
+        $post_id = $this->factory->post->create(array('post_author' => $user_id));
+        $post = get_post($post_id);
+
+        $enzymes = new Enzymes3();
+
+        $content1 = 'Before "{[ =whatever here= | =a hundred= | 100 | =twenty and three= | 20 | 3 | array(2) | hash(2) | /author.sample-name(1) ]}" and after.';
+        $content2 = 'Before "2300" and after.';
+        $this->assertEquals($content2, $enzymes->metabolize($content1, $post));
+    }
+
 }
