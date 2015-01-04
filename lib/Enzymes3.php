@@ -435,6 +435,56 @@ class Enzymes3
     }
 
     /**
+     * @param string  $post_item
+     * @param integer $num_args
+     *
+     * @return mixed
+     * @throws Ando_Exception
+     */
+    protected
+    function execute_post_item( $post_item, $num_args )
+    {
+        $this->debug_print('executing post_item');
+        // match again to be able to access groups by name...
+        $expression = $this->grammar['post_item']->wrapper_set('@@')
+                                                 ->expression(true);
+        preg_match($expression, $post_item, $matches);
+        $post_object = $this->wp_post($matches);
+        $code = $this->wp_post_field($post_object, $matches);
+        // We allow PHP execution by default, and optionally some HTML code properly unwrapped off PHP tags.
+        $arguments = $num_args > 0
+                ? $this->catalyzed->pop($num_args)
+                : array();
+        list($result,) = $this->safe_eval($code, $arguments);
+        return $result;
+    }
+
+    /**
+     * @param string  $author_item
+     * @param integer $num_args
+     *
+     * @return mixed
+     * @throws Ando_Exception
+     */
+    protected
+    function execute_author_item( $author_item, $num_args )
+    {
+        $this->debug_print('executing author_item');
+        $expression = $this->grammar['author_item']->wrapper_set('@@')
+                                                   ->expression(true);
+        preg_match($expression, $author_item, $matches);
+        $post_object = $this->wp_post($matches);
+        $user_object = $this->wp_author($post_object);
+        $code = $this->wp_user_field($user_object, $matches);
+        // We allow PHP execution by default, and optionally some HTML code properly unwrapped off PHP tags.
+        $arguments = $num_args > 0
+                ? $this->catalyzed->pop($num_args)
+                : array();
+        list($result,) = $this->safe_eval($code, $arguments);
+        return $result;
+    }
+
+    /**
      * @param array $matches
      *
      * @return array|null
@@ -442,25 +492,18 @@ class Enzymes3
     protected
     function do_execution( array $matches )
     {
-        $this->default_empty($matches, 'execution', 'item', 'post_item', 'author_item', 'num_args');
+        $this->default_empty($matches, 'execution', 'post_item', 'author_item', 'num_args');
         extract($matches);
         /* @var $execution string */
-        /* @var $item string */
         /* @var $post_item string */
         /* @var $author_item string */
         /* @var $num_args string */
         $num_args = (int) $num_args;
         switch (true) {
-            case (strpos($execution, 'array(') === 0):
-                if ( 0 == $num_args ) {
-                    break;
-                }
+            case (strpos($execution, 'array(') === 0 && $num_args > 0):
                 $result = $this->catalyzed->pop($num_args);
                 break;
-            case (strpos($execution, 'hash(') === 0):
-                if ( 0 == $num_args ) {
-                    break;
-                }
+            case (strpos($execution, 'hash(') === 0 && $num_args > 0):
                 $result = array();
                 $arguments = $this->catalyzed->pop(2 * $num_args);
                 for ($i = 0, $i_top = 2 * $num_args; $i < $i_top; $i += 2) {
@@ -469,36 +512,11 @@ class Enzymes3
                     $result[$key] = $value;
                 }
                 break;
-            case ($item != ''):
-                switch (true) {
-                    case ($post_item != ''):
-                        $this->debug_print('executing post_item');
-                        // match again to be able to access groups by name...
-                        $expression = $this->grammar['post_item']->wrapper_set('@@')
-                                                                 ->expression(true);
-                        preg_match($expression, $post_item, $matches);
-                        $post_object = $this->wp_post($matches);
-                        $code = $this->wp_post_field($post_object, $matches);
-                        break;
-                    case ($author_item != ''):
-                        $this->debug_print('executing author_item');
-                        $expression = $this->grammar['author_item']->wrapper_set('@@')
-                                                                   ->expression(true);
-                        preg_match($expression, $author_item, $matches);
-                        $post_object = $this->wp_post($matches);
-                        $user_object = $this->wp_author($post_object);
-                        $code = $this->wp_user_field($user_object, $matches);
-                        break;
-                    default:
-                        $this->debug_print('executing default');
-                        $code = 'return null;';
-                        break;
-                }
-                // We allow PHP execution by default, and optionally some HTML code properly unwrapped off PHP tags.
-                $arguments = $num_args > 0
-                        ? $this->catalyzed->pop($num_args)
-                        : array();
-                list($result,) = $this->safe_eval($code, $arguments);
+            case ($post_item != ''):
+                $result = $this->execute_post_item($post_item, $num_args);
+                break;
+            case ($author_item != ''):
+                $result = $this->execute_author_item($author_item, $num_args);
                 break;
             default:
                 $result = null;
