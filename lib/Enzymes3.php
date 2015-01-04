@@ -7,28 +7,31 @@ class Enzymes3
     public $debug_on = false;
 
     public
-    function debug_print( $something ) {
-        if (! $this->debug_on) return;
+    function debug_print( $something )
+    {
+        if ( ! $this->debug_on ) {
+            return;
+        }
         fwrite(STDERR, "\n" . print_r($something, true) . "\n");
     }
 
     /**
      * The post which the content belongs to.
-     * 
+     *
      * @var WP_Post
      */
     protected $post;
 
     /**
      * The content of the post, modified by Enzymes.
-     * 
+     *
      * @var string
      */
     protected $new_content;
 
     /**
      * Regular expression for matching "{[ .. ]}".
-     * 
+     *
      * @var Ando_Regex
      */
     protected $e_injection;
@@ -100,21 +103,23 @@ class Enzymes3
     /**
      * Grammar (top down).
      * ---
-     * injection  := "{[" sequence "]}"
+     * injection := "{[" sequence "]}"
      *   sequence := enzyme ("|" enzyme)*
      *   enzyme   := literal | transclusion | execution
      *
-     * literal   := number | str_literal
+     * literal := number | str_literal
      *   number  := \d+(\.\d+)?
      *   str_literal := string
      *   string  := "=" <a string where "=", "|", "]}", "\"  are escaped by a prefixed "\"> "="
      *
-     * transclusion := item | post "~author:" attribute | post ":" attribute
-     *   item       := post "." field
-     *   post       := \d+ | "@" slug | ""
-     *   slug       := [\w+~-]+
-     *   field      := [\w-]+ | string
-     *   attribute  := \w+
+     * transclusion := post_item | post_attr | author_item | author_attr
+     *   post_item   := post "." field
+     *   post_attr   := post ":" field
+     *   author_item := post "/author." field
+     *   author_attr := post "/author:" field
+     *   post        := \d+ | "@" slug | ""
+     *   slug        := [\w+~-]+
+     *   field       := [\w-]+ | string
      *
      * execution := ("array" | "hash" | item) "(" \d* ")"
      * ---
@@ -136,20 +141,25 @@ class Enzymes3
          */
         $grammar = array(
                 'number'       => '(?<number>\d+(\.\d+)?)',
-                'string'       => '(?<string>' . Ando_Regex::pattern_quoted_string('=', '=') . ')',  // @=[^=\\]*(?:\\.[^=\\]*)*=@
+                'string'       => '(?<string>' . Ando_Regex::pattern_quoted_string('=', '=') . ')',
+                // @=[^=\\]*(?:\\.[^=\\]*)*=@
                 'str_literal'  => '(?<str_literal>$string)',
                 'literal'      => '(?<literal>$number|$str_literal)',
 
                 'slug'         => '(?<slug>[\w+~-]+)',
-                'attribute'    => '(?<attribute>\w+)',
                 'post'         => '(?<post>\d+|@$slug|)',
                 'field'        => '(?<field>[\w-]+|$string)',
-                'item'         => '(?<item>$post\.$field)',
-                'transclusion' => '(?<transclusion>$item|$post~author:$attribute|$post:$attribute)',
+                'post_item'    => '(?<post_item>$post\.$field)',
+                'author_item'  => '(?<author_item>$post/author\.$field)',
+                'item'         => '(?<item>$post_item|$author_item)',
+                'post_attr'    => '(?<post_attr>$post:$field)',
+                'author_attr'  => '(?<author_attr>$post/author:$field)',
+                'attr'         => '(?<attr>$post_attr|$author_attr)',
+                'transclusion' => '(?<transclusion>$item|$attr)',
 
                 'execution'    => '(?<execution>(?:\barray\b|\bhash\b|$item)\((?<num_args>\d*)\))',
 
-                'enzyme'       => '(?<enzyme>(?:$literal|$transclusion|$execution))',
+                'enzyme'       => '(?<enzyme>(?:$execution|$transclusion|$literal))',
                 'sequence'     => '(?<sequence>$enzyme(\|$enzyme)*)',
                 'injection'    => '(?<injection>{[$sequence]})',
         );
@@ -325,7 +335,7 @@ class Enzymes3
      * @return string|array
      */
     protected
-    function wp_custom_field( $post_object, array $matches )
+    function wp_post_field( $post_object, array $matches )
     {
         $this->default_empty($matches, 'field', 'string');
         extract($matches);
@@ -340,6 +350,74 @@ class Enzymes3
                 : (count($values) == 0
                         ? null
                         : $values);
+        return $result;
+    }
+
+    /**
+     * @param WP_Post $post_object
+     * @param array   $matches
+     *
+     * @return mixed
+     */
+    protected
+    function wp_post_attribute( $post_object, array $matches )
+    {
+        $this->default_empty($matches, 'field', 'string');
+        extract($matches);
+        /* @var $field string */
+        /* @var $string string */
+        if ( $string ) {
+            $field = $this->unquote($field);
+        }
+        if ( ! property_exists($post_object, $field) ) {
+            return "($field)";
+        }
+        $result = $post_object->$field;
+        return $result;
+    }
+
+    /**
+     * @param WP_User $user_object
+     * @param array   $matches
+     *
+     * @return string|array
+     */
+    protected
+    function wp_user_field( $user_object, array $matches )
+    {
+        $this->default_empty($matches, 'field', 'string');
+        extract($matches);
+        /* @var $field string */
+        /* @var $string string */
+        if ( $string ) {
+            $field = $this->unquote($field);
+        }
+        $values = get_user_meta($user_object->ID, $field);
+        $result = count($values) == 1
+                ? $values[0]
+                : (count($values) == 0
+                        ? null
+                        : $values);
+        return $result;
+    }
+
+    /**
+     * @param WP_User $user_object
+     * @param array   $matches
+     *
+     * @return mixed
+     */
+    protected
+    function wp_user_attribute( $user_object, array $matches )
+    {
+        $this->default_empty($matches, 'field', 'string');
+        extract($matches);
+        /* @var $field string */
+        /* @var $string string */
+        if ( $string ) {
+            $field = $this->unquote($field);
+        }
+        $result = @$user_object->$field;
         return $result;
     }
 
@@ -364,10 +442,12 @@ class Enzymes3
     protected
     function do_execution( array $matches )
     {
-        $this->default_empty($matches, 'execution', 'item', 'post', 'field', 'num_args');
+        $this->default_empty($matches, 'execution', 'item', 'post_item', 'author_item', 'num_args');
         extract($matches);
         /* @var $execution string */
         /* @var $item string */
+        /* @var $post_item string */
+        /* @var $author_item string */
         /* @var $num_args string */
         $num_args = (int) $num_args;
         switch (true) {
@@ -390,8 +470,30 @@ class Enzymes3
                 }
                 break;
             case ($item != ''):
-                $post_object = $this->wp_post($matches);
-                $code = $this->wp_custom_field($post_object, $matches);
+                switch (true) {
+                    case ($post_item != ''):
+                        $this->debug_print('executing post_item');
+                        // match again to be able to access groups by name...
+                        $expression = $this->grammar['post_item']->wrapper_set('@@')
+                                                                 ->expression(true);
+                        preg_match($expression, $post_item, $matches);
+                        $post_object = $this->wp_post($matches);
+                        $code = $this->wp_post_field($post_object, $matches);
+                        break;
+                    case ($author_item != ''):
+                        $this->debug_print('executing author_item');
+                        $expression = $this->grammar['author_item']->wrapper_set('@@')
+                                                                   ->expression(true);
+                        preg_match($expression, $author_item, $matches);
+                        $post_object = $this->wp_post($matches);
+                        $user_object = $this->wp_author($post_object);
+                        $code = $this->wp_user_field($user_object, $matches);
+                        break;
+                    default:
+                        $this->debug_print('executing default');
+                        $code = 'return null;';
+                        break;
+                }
                 // We allow PHP execution by default, and optionally some HTML code properly unwrapped off PHP tags.
                 $arguments = $num_args > 0
                         ? $this->catalyzed->pop($num_args)
@@ -413,24 +515,44 @@ class Enzymes3
     protected
     function do_transclusion( array $matches )
     {
-        $this->default_empty($matches, 'transclusion', 'item', 'post', 'field', 'attribute');
+        $this->default_empty($matches, 'post_item', 'post_attr', 'author_item', 'author_attr');
         extract($matches);
-        /* @var $transclusion string */
-        /* @var $item string */
-        /* @var $attribute string */
+        /* @var $post_item string */
+        /* @var $post_attr string */
+        /* @var $author_item string */
+        /* @var $author_attr string */
         $post_object = $this->wp_post($matches);
         switch (true) {
-            case (strpos($transclusion, '~author:') !== false):
-                $user_object = $this->wp_author($post_object);
-                $output = @$user_object->$attribute;  // @link http://codex.wordpress.org/Function_Reference/get_userdata
-                break;
-            case ($attribute != ''):
-                $output = @$post_object->$attribute;  // @link http://codex.wordpress.org/Class_Reference/WP_Post
-                break;
-            case ($item != ''):
-                $code = $this->wp_custom_field($post_object, $matches);
+            case ($post_item != ''):
+                $this->debug_print('transcluding post_item');
+                $expression = $this->grammar['post_item']->wrapper_set('@@')
+                                                         ->expression(true);
+                preg_match($expression, $post_item, $matches);
+                $code = $this->wp_post_field($post_object, $matches);
                 // We allow HTML transclusion by default, and optionally some PHP code properly wrapped into PHP tags.
                 list(, $output) = $this->safe_eval(" ?>$code<?php ");
+                break;
+            case ($post_attr != ''):
+                $this->debug_print('transcluding post_attr');
+                $output = $this->wp_post_attribute($post_object, $matches);
+                break;
+            case ($author_item != ''):
+                $this->debug_print('transcluding author_item');
+                $expression = $this->grammar['author_item']->wrapper_set('@@')
+                                                           ->expression(true);
+                preg_match($expression, $author_item, $matches);
+                $user_object = $this->wp_author($post_object);
+                $code = $this->wp_user_field($user_object, $matches);
+                // We allow HTML transclusion by default, and optionally some PHP code properly wrapped into PHP tags.
+                list(, $output) = $this->safe_eval(" ?>$code<?php ");
+                break;
+            case ($author_attr != ''):
+                $this->debug_print('transcluding author_attr');
+                $expression = $this->grammar['author_attr']->wrapper_set('@@')
+                                                           ->expression(true);
+                preg_match($expression, $author_attr, $matches);
+                $user_object = $this->wp_author($post_object);
+                $output = $this->wp_user_attribute($user_object, $matches);
                 break;
             default:
                 $output = null;
@@ -486,6 +608,7 @@ class Enzymes3
     {
         $sequence = $this->clean_up($could_be_sequence);
         $there_are_only_chained_enzymes = preg_match($this->e_sequence_valid, '|' . $sequence);
+//        $this->debug_print($this->e_sequence_valid . '');
         if ( ! $there_are_only_chained_enzymes ) {
             $result = '{[' . $could_be_sequence . ']}';  // skip this injection like if it had been escaped...
         } else {
