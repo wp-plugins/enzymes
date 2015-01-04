@@ -397,6 +397,10 @@ class Enzymes3Test
     function test_author_properties()
     {
         /*
+         * Post properties (should) come only from columns of the posts table.
+         * Author properties come both from columns of the users table and key/value pairs in user_meta, but this fact
+         * is automatically taken into account by the WordPress API (__get).
+         *
          * This test is a bit "strange" because I had to put here the same code that is in the source to make it work.
          * Also notice that not all properties are sufficiently tested because $this->factory->user->create() doesn't
          * fill in all the columns and meta keys. Additionally there could be some properties like 'roles' which go on
@@ -525,6 +529,10 @@ class Enzymes3Test
     function test_properties()
     {
         /*
+         * Post properties (should) come only from columns of the posts table.
+         * Author properties come both from columns of the users table and key/value pairs in user_meta, but this fact
+         * is automatically taken into account by the WordPress API (__get).
+         *
          * This test is a bit "strange" because I had to put here the same code that is in the source to make it work.
          */
         $enzymes = new Enzymes3();
