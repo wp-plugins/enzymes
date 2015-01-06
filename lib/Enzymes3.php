@@ -438,9 +438,9 @@ class Enzymes3
     protected
     function execute_code( $code, $arguments, $post_object )
     {
-        $current_user = wp_get_current_user();
-        if ( author_can($post_object, 'create_php_enzymes') &&
-             ($current_user->ID == $post_object->post_author || author_can($post_object, 'share_php_enzymes'))
+        if ( author_can($post_object, 'enzymes.create_dynamic_custom_fields') &&
+             ($this->post->ID == $post_object->ID ||
+              author_can($post_object, 'enzymes.share_dynamic_custom_fields'))
         ) {
             list($result,) = $this->safe_eval($code, $arguments);
         } else {
@@ -541,12 +541,12 @@ class Enzymes3
     protected
     function transclude_code( $code, $post_object )
     {
-        $current_user = wp_get_current_user();
-        if ( author_can($post_object, 'create_php_enzymes') &&
-             ($current_user->ID == $post_object->post_author || author_can($post_object, 'share_php_enzymes'))
+        if ( author_can($post_object, 'enzymes.create_dynamic_custom_fields') &&
+             ($this->post->ID == $post_object->ID ||
+              author_can($post_object, 'enzymes.share_dynamic_custom_fields'))
         ) {
             list(, $output) = $this->safe_eval(" ?>$code<?php ");
-        } elseif ( author_can($post_object, 'create_html_enzymes') ) {
+        } elseif ( author_can($post_object, 'enzymes.create_static_custom_fields') ) {
             $output = $code;
         } else {
             $output = '';
@@ -778,7 +778,7 @@ class Enzymes3
         if ( is_null($this->post) ) {
             return $content;
         }
-        if ( ! author_can($this->post, 'inject_enzymes') ) {
+        if ( ! author_can($this->post, 'enzymes.inject') ) {
             return $content;
         }
         if ( ! $this->there_is_an_injection($content, $matches) ) {
@@ -808,53 +808,53 @@ class Enzymes3
     function add_roles_and_capabilities()
     {
         $capabilities = array(
-                'inject_enzymes'      => 'it allows a post author to inject enzymes',
-                'create_html_enzymes' => 'it allows her to use her non_evaluated enzymes',
-                'create_php_enzymes'  => 'it allows her to use her evaluated enzymes',
-                'share_html_enzymes'  => 'it allows others to use her non_evaluated enzymes',
-                'share_php_enzymes'   => 'it allows others to use her evaluated enzymes',
+                'enzymes.inject'                       => 'It allows a user to inject enzymes into her posts.',
+                'enzymes.use_own_attributes'           => 'It allows a user to make her enzymes with her own attributes.',
+                'enzymes.use_others_attributes'        => 'It allows a user to make her enzymes with others\' attributes.',
+                'enzymes.use_own_custom_fields'        => 'It allows a user to make her enzymes with her own custom fields.',
+                'enzymes.use_others_custom_fields'     => 'It allows a user to make her enzymes with others\' custom fields.',
+                'enzymes.create_static_custom_fields'  => 'It allows a user to create enzymes from non-evaluated custom fields.',
+                'enzymes.create_dynamic_custom_fields' => 'It allows a user to create enzymes from evaluated custom fields.',
+                'enzymes.share_static_custom_fields'   => 'It allows a user to share her enzymes from non-evaluated custom fields.',
+                'enzymes.share_dynamic_custom_fields'  => 'It allows a user to share her enzymes from evaluated custom fields.',
         );
 
-        remove_role('enzymes_user');
-        add_role('enzymes_user', __('Enzymes User'), array('inject_enzymes' => true));
+        remove_role('enzymes.User');
+        $user_role = add_role('enzymes.User', __('Enzymes User'), array(
+                'enzymes.inject'                       => true,
+                'enzymes.use_own_attributes'           => true,
+                'enzymes.use_others_attributes'        => false,
+                'enzymes.use_own_custom_fields'        => true,
+                'enzymes.use_others_custom_fields'     => false,
+                'enzymes.create_static_custom_fields'  => true,
+                'enzymes.create_dynamic_custom_fields' => false,
+                'enzymes.share_static_custom_fields'   => false,
+                'enzymes.share_dynamic_custom_fields'  => false,
+        ));
 
-        remove_role('client_enzymes_coder');
-        add_role('client_enzymes_coder', __('Client Enzymes Coder'),
-                 array('inject_enzymes' => true, 'create_html_enzymes' => true, 'share_html_enzymes' => true));
+        remove_role('enzymes.TrustedUser');
+        $trusted_user_role = add_role('enzymes.TrustedUser', __('Enzymes Trusted User'),
+                                      array_merge($user_role->capabilities, array(
+                                              'enzymes.share_static_custom_fields' => true,
+                                      )));
 
-        remove_role('server_enzymes_coder');
-        add_role('server_enzymes_coder', __('Server Enzymes Coder'),
-                 array('inject_enzymes' => true, 'create_php_enzymes' => true, 'share_php_enzymes' => true));
+        remove_role('enzymes.Coder');
+        $coder_role = add_role('enzymes.Coder', __('Enzymes Coder'),
+                               array_merge($user_role->capabilities, array(
+                                       'enzymes.create_dynamic_custom_fields' => true,
+                               )));
+
+        remove_role('enzymes.TrustedCoder');
+        $trusted_coder_role = add_role('enzymes.TrustedCoder', __('Enzymes Trusted Coder'),
+                                       array_merge($coder_role->capabilities, array(
+                                               'enzymes.share_static_custom_fields' => true,
+                                               'enzymes.share_dynamic_custom_fields' => true,
+                                       )));
 
         global $wp_roles;
         /* @var $wp_roles WP_Roles */
-        $wp_roles->add_cap('administrator', 'inject_enzymes');
-        $wp_roles->add_cap('administrator', 'create_php_enzymes');
-        $wp_roles->add_cap('administrator', 'share_php_enzymes');
-//        $admins = get_users(array('role' => 'administrator')); /* @var $admins WP_User[] */
-//        foreach ($admins as $admin) {
-//            $admin->add_role('server_enzymes_coder');
-//        }
+        foreach (array_keys($user_role->capabilities) as $cap) {
+            $wp_roles->add_cap('administrator', $cap);
+        }
     }
-
-//    protected
-//    function is_trusted( $user_id )
-//    {
-//        $admin_id = 1;
-//        $result = $user_id == $admin_id;
-//        if ( $result ) {
-//            return $result;
-//        }
-//
-//        list($trusted_users) = trim(get_user_meta($admin_id, array('field' => 'enzymes-trusted-users')));
-//        $result = strpos(" $trusted_users ", $user_id) !== false;
-//        if ( $result ) {
-//            return $result;
-//        }
-//
-//        list($trusted_roles) = trim(get_user_meta($admin_id, array('field' => 'enzymes-trusted-roles')));
-//        $trusted_roles = explode(' ', $trusted_users);
-//        $user_roles = $this->wp_roles($user_id);
-//
-//    }
 }
