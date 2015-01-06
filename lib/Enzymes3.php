@@ -1,6 +1,6 @@
 <?php
-
 require_once 'Ando/Regex.php';
+require_once 'Sequence.php';
 
 class Enzymes3
 {
@@ -254,6 +254,7 @@ class Enzymes3
     {
         $this->init_grammar();
         $this->init_expressions();
+        $this->add_roles_and_capabilities();
     }
 
     /**
@@ -434,6 +435,20 @@ class Enzymes3
         return $result;
     }
 
+    protected
+    function execute_code( $code, $arguments, $post_object )
+    {
+        $current_user = wp_get_current_user();
+        if ( author_can($post_object, 'create_php_enzymes') &&
+             ($current_user->ID == $post_object->post_author || author_can($post_object, 'share_php_enzymes'))
+        ) {
+            list($result,) = $this->safe_eval($code, $arguments);
+        } else {
+            $result = null;
+        }
+        return $result;
+    }
+
     /**
      * @param string  $post_item
      * @param integer $num_args
@@ -451,11 +466,10 @@ class Enzymes3
         preg_match($expression, $post_item, $matches);
         $post_object = $this->wp_post($matches);
         $code = $this->wp_post_field($post_object, $matches);
-        // We allow PHP execution by default, and optionally some HTML code properly unwrapped off PHP tags.
         $arguments = $num_args > 0
                 ? $this->catalyzed->pop($num_args)
                 : array();
-        list($result,) = $this->safe_eval($code, $arguments);
+        $result = $this->execute_code($code, $arguments, $post_object);
         return $result;
     }
 
@@ -476,11 +490,10 @@ class Enzymes3
         $post_object = $this->wp_post($matches);
         $user_object = $this->wp_author($post_object);
         $code = $this->wp_user_field($user_object, $matches);
-        // We allow PHP execution by default, and optionally some HTML code properly unwrapped off PHP tags.
         $arguments = $num_args > 0
                 ? $this->catalyzed->pop($num_args)
                 : array();
-        list($result,) = $this->safe_eval($code, $arguments);
+        $result = $this->execute_code($code, $arguments, $post_object);
         return $result;
     }
 
@@ -525,6 +538,22 @@ class Enzymes3
         return $result;
     }
 
+    protected
+    function transclude_code( $code, $post_object )
+    {
+        $current_user = wp_get_current_user();
+        if ( author_can($post_object, 'create_php_enzymes') &&
+             ($current_user->ID == $post_object->post_author || author_can($post_object, 'share_php_enzymes'))
+        ) {
+            list(, $output) = $this->safe_eval(" ?>$code<?php ");
+        } elseif ( author_can($post_object, 'create_html_enzymes') ) {
+            $output = $code;
+        } else {
+            $output = '';
+        }
+        return $output;
+    }
+
     /**
      * @param string  $post_item
      * @param WP_Post $post_object
@@ -540,8 +569,7 @@ class Enzymes3
                                                  ->expression(true);
         preg_match($expression, $post_item, $matches);
         $code = $this->wp_post_field($post_object, $matches);
-        // We allow HTML transclusion by default, and optionally some PHP code properly wrapped into PHP tags.
-        list(, $output) = $this->safe_eval(" ?>$code<?php ");
+        $output = $this->transclude_code($code, $post_object);
         return $output;
     }
 
@@ -579,8 +607,7 @@ class Enzymes3
         preg_match($expression, $author_item, $matches);
         $user_object = $this->wp_author($post_object);
         $code = $this->wp_user_field($user_object, $matches);
-        // We allow HTML transclusion by default, and optionally some PHP code properly wrapped into PHP tags.
-        list(, $output) = $this->safe_eval(" ?>$code<?php ");
+        $output = $this->transclude_code($code, $post_object);
         return $output;
     }
 
@@ -737,20 +764,26 @@ class Enzymes3
     }
 
     /**
-     * @param string $content
-     * @param null   $default_post
+     * @param string       $content
+     * @param null|WP_Post $default_post
      *
      * @return array|null|string
      */
     public
     function metabolize( $content, $default_post = null )
     {
-        if ( ! $this->there_is_an_injection($content, $matches) ) {
-            return $content;
-        }
         $this->post = is_object($default_post)
                 ? $default_post
                 : get_post();
+        if ( is_null($this->post) ) {
+            return $content;
+        }
+        if ( ! author_can($this->post, 'inject_enzymes') ) {
+            return $content;
+        }
+        if ( ! $this->there_is_an_injection($content, $matches) ) {
+            return $content;
+        }
         $this->new_content = '';
         do {
             $this->default_empty($matches, 'before', 'could_be_sequence', 'after');
@@ -770,4 +803,58 @@ class Enzymes3
 
         return $result;
     }
+
+    protected
+    function add_roles_and_capabilities()
+    {
+        $capabilities = array(
+                'inject_enzymes'      => 'it allows a post author to inject enzymes',
+                'create_html_enzymes' => 'it allows her to use her non_evaluated enzymes',
+                'create_php_enzymes'  => 'it allows her to use her evaluated enzymes',
+                'share_html_enzymes'  => 'it allows others to use her non_evaluated enzymes',
+                'share_php_enzymes'   => 'it allows others to use her evaluated enzymes',
+        );
+
+        remove_role('enzymes_user');
+        add_role('enzymes_user', __('Enzymes User'), array('inject_enzymes' => true));
+
+        remove_role('client_enzymes_coder');
+        add_role('client_enzymes_coder', __('Client Enzymes Coder'),
+                 array('inject_enzymes' => true, 'create_html_enzymes' => true, 'share_html_enzymes' => true));
+
+        remove_role('server_enzymes_coder');
+        add_role('server_enzymes_coder', __('Server Enzymes Coder'),
+                 array('inject_enzymes' => true, 'create_php_enzymes' => true, 'share_php_enzymes' => true));
+
+        global $wp_roles;
+        /* @var $wp_roles WP_Roles */
+        $wp_roles->add_cap('administrator', 'inject_enzymes');
+        $wp_roles->add_cap('administrator', 'create_php_enzymes');
+        $wp_roles->add_cap('administrator', 'share_php_enzymes');
+//        $admins = get_users(array('role' => 'administrator')); /* @var $admins WP_User[] */
+//        foreach ($admins as $admin) {
+//            $admin->add_role('server_enzymes_coder');
+//        }
+    }
+
+//    protected
+//    function is_trusted( $user_id )
+//    {
+//        $admin_id = 1;
+//        $result = $user_id == $admin_id;
+//        if ( $result ) {
+//            return $result;
+//        }
+//
+//        list($trusted_users) = trim(get_user_meta($admin_id, array('field' => 'enzymes-trusted-users')));
+//        $result = strpos(" $trusted_users ", $user_id) !== false;
+//        if ( $result ) {
+//            return $result;
+//        }
+//
+//        list($trusted_roles) = trim(get_user_meta($admin_id, array('field' => 'enzymes-trusted-roles')));
+//        $trusted_roles = explode(' ', $trusted_users);
+//        $user_roles = $this->wp_roles($user_id);
+//
+//    }
 }

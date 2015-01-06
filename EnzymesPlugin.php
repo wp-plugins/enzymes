@@ -16,7 +16,7 @@ class EnzymesPlugin
     static public
     function engine()
     {
-        if (is_null(self::$enzymes)) {
+        if ( is_null(self::$enzymes) ) {
             require_once 'lib/Enzymes3.php';
             self::$enzymes = new Enzymes3();
         }

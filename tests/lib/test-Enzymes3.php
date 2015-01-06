@@ -1,7 +1,4 @@
 <?php
-
-//fwrite(STDERR, "\n\n" . print_r($result, TRUE));
-
 require_once 'lib/Enzymes3.php';
 
 class Enzymes3Test
@@ -52,9 +49,31 @@ class Enzymes3Test
         return $result;
     }
 
+    function setUp()
+    {
+        parent::setUp();
+
+        $admin_id = $this->factory->user->create(array(
+                                                      'role' => 'administrator'
+                                              ));
+        global $current_user;
+        $current_user = new WP_User($admin_id);
+
+        $global_post_id = $this->factory->post->create(array(
+                                                               'post_author' => $admin_id,
+                                                               'post_title'  => 'This is the global post.'
+                                                       ));
+        global $post;
+        $post = get_post($global_post_id);
+    }
+
     function test_an_escaped_injection_is_ignored()
     {
         $enzymes = new Enzymes3();
+
+//        $enzymes->debug_on = true;
+//        $enzymes->debug_print(get_post()->post_title);
+//        $enzymes->debug_on = false;
 
         $content1 = 'This is something before {{[ whatever ]} and this is after.';
         $content2 = 'This is something before {[ whatever ]} and this is after.';
@@ -71,6 +90,8 @@ class Enzymes3Test
 
     function test_content_with_injections_is_filtered()
     {
+        // compare with test_dangling_enzymes_are_ignored
+
         $mock = $this->getMockBuilder('Enzymes3')
                      ->setMethods(array('process'))
                 //->disableOriginalConstructor()
@@ -84,11 +105,31 @@ class Enzymes3Test
         $this->assertEquals($content2, $mock->metabolize($content1));
     }
 
+    function test_dangling_enzymes_are_ignored()
+    {
+        // compare with test_content_with_injections_is_filtered
+
+        $mock = $this->getMockBuilder('Enzymes3')
+                     ->setMethods(array('process'))
+                //->disableOriginalConstructor()
+                     ->getMock();
+        $mock->expects($this->any())
+             ->method('process')
+             ->will($this->returnValue('"Hello, World!"'));
+
+        global $post;
+        $post = null;
+
+        $content1 = 'This is something before {[ whatever ]} and this is after.';
+        $content2 = 'This is something before {[ whatever ]} and this is after.';
+        $this->assertEquals($content2, $mock->metabolize($content1));
+    }
+
     function test_default_empty()
     {
         // case when the initial array is not empty
         $values = array(
-                'one'   => 1,
+                'one' => 1,
                 'three' => 3,
         );
         $this->call_method('default_empty', array(&$values, 'one', 'two'));
@@ -124,9 +165,7 @@ class Enzymes3Test
 
     function test_wp_post()
     {
-        $global_post_id = $this->factory->post->create(array('post_title' => 'This is the global post.'));
         global $post;
-        $post = get_post($global_post_id);
 
         $target_post_id = $this->factory->post->create(array('post_title' => 'This is the target post.'));
         $target = get_post($target_post_id);
@@ -136,7 +175,7 @@ class Enzymes3Test
         // this must return the global post
         $enzymes->metabolize('This post has a {[ fake ]} injection.');
         $result = $this->call_method('wp_post', array(array()), $enzymes);
-        $this->assertEquals($global_post_id, $result->ID);
+        $this->assertEquals($post->ID, $result->ID);
 
         // this must return the target post (default)
         $enzymes->metabolize('This post has a {[ fake ]} injection.', $target);
@@ -145,17 +184,18 @@ class Enzymes3Test
 
         // this must return the target post (numeric)
         $enzymes->metabolize('This post has a {[ fake ]} injection.', $target);
-        $result = $this->call_method('wp_post', array(array('post' => $global_post_id)), $enzymes);
-        $this->assertEquals($global_post_id, $result->ID);
+        $result = $this->call_method('wp_post', array(array('post' => $post->ID)), $enzymes);
+        $this->assertEquals($post->ID, $result->ID);
 
         // this must return the target post (slug)
         $enzymes->metabolize('This post has a {[ fake ]} injection.', $target);
         $result = $this->call_method('wp_post', array(
                 array(
-                        'post' => '@this-is-the-global-post', 'slug' => 'this-is-the-global-post'
+                        'post' => '@this-is-the-global-post',
+                        'slug' => 'this-is-the-global-post',
                 )
         ), $enzymes);
-        $this->assertEquals($global_post_id, $result->ID);
+        $this->assertEquals($post->ID, $result->ID);
     }
 
     function test_unquote()
@@ -256,9 +296,7 @@ class Enzymes3Test
 
         $content1 = 'Before "{[ .sample-name ]}" between "{[ .=sample name= ]}" and after.';
         $content2 = 'Before "sample-value" between "sample value" and after.';
-//        $enzymes->debug_on = true;
         $this->assertEquals($content2, $enzymes->metabolize($content1, $post));
-//        $enzymes->debug_on = false;
     }
 
     function test_a_final_literal_wins()
@@ -446,15 +484,13 @@ class Enzymes3Test
         $attrs_seq = ' /author:' . implode(' | /author:', $attrs);
         $attrs_count = count($attrs);
 
-        $user = $this->factory->user->create_and_get();
+        // This role is not really needed for attributes, but it makes my test easier to write.
+        $user = $this->factory->user->create_and_get(array('role' => 'server_enzymes_coder'));
         $data = array();
         foreach ($attrs as $key) {
             $data[$key] = $user->$key;
         }
         $data = "(" . implode(")(", $data) . ")";
-//        $enzymes->debug_on = true;
-//        $enzymes->debug_print($data);
-//        $enzymes->debug_on = false;
 
         $post_id = $this->factory->post->create(array('post_author' => $user->ID));
         $code = '
@@ -472,7 +508,7 @@ class Enzymes3Test
 
     function test_transcluded_author_from_current_post()
     {
-        $user_id = $this->factory->user->create();
+        $user_id = $this->factory->user->create(array('role' => 'client_enzymes_coder'));
         add_user_meta($user_id, 'sample-name', 'sample-value');
         add_user_meta($user_id, 'sample name', 'sample value');
         $post_id = $this->factory->post->create(array('post_author' => $user_id));
@@ -482,19 +518,17 @@ class Enzymes3Test
 
         $content1 = 'Before "{[ /author.sample-name ]}" between "{[ /author.=sample name= ]}" and after.';
         $content2 = 'Before "sample-value" between "sample value" and after.';
-//        $enzymes->debug_on = true;
         $this->assertEquals($content2, $enzymes->metabolize($content1, $post));
-//        $enzymes->debug_on = false;
     }
 
     function test_transcluded_author_from_another_post()
     {
-        $user_1_id = $this->factory->user->create();
+        $user_1_id = $this->factory->user->create(array('role' => 'enzymes_user'));
         add_user_meta($user_1_id, 'sample-name', 'sample value 1');
         $post_1_id = $this->factory->post->create(array('post_author' => $user_1_id));
         $post_1 = get_post($post_1_id);
 
-        $user_2_id = $this->factory->user->create();
+        $user_2_id = $this->factory->user->create(array('role' => 'client_enzymes_coder'));
         add_user_meta($user_2_id, 'sample-name', 'sample value 2');
         $post_2_id = $this->factory->post->create(array('post_author' => $user_2_id));
 
@@ -507,12 +541,12 @@ class Enzymes3Test
 
     function test_transcluded_author_from_another_post_by_slug()
     {
-        $user_1_id = $this->factory->user->create();
+        $user_1_id = $this->factory->user->create(array('role' => 'enzymes_user'));
         add_user_meta($user_1_id, 'sample-name', 'sample value 1');
         $post_1_id = $this->factory->post->create(array('post_author' => $user_1_id));
         $post_1 = get_post($post_1_id);
 
-        $user_2_id = $this->factory->user->create();
+        $user_2_id = $this->factory->user->create(array('role' => 'client_enzymes_coder'));
         add_user_meta($user_2_id, 'sample-name', 'sample value 2');
         $post_2_id = $this->factory->post->create(array(
                                                           'post_author' => $user_2_id,
@@ -573,9 +607,6 @@ class Enzymes3Test
             $data[$key] = $post->$key;
         }
         $data = "(" . implode(")(", $data) . ")";
-//        $enzymes->debug_on = true;
-//        $enzymes->debug_print($data);
-//        $enzymes->debug_on = false;
 
         $post_id = $post->ID;
         $code = '
@@ -592,7 +623,7 @@ class Enzymes3Test
 
     function test_executed_author_with_no_arguments()
     {
-        $user_id = $this->factory->user->create();
+        $user_id = $this->factory->user->create(array('role' => 'server_enzymes_coder'));
         add_user_meta($user_id, 'sample-name', '
         $a = 100;
         $b = 20;
@@ -612,7 +643,7 @@ class Enzymes3Test
 
     function test_executed_author_with_one_argument()
     {
-        $user_id = $this->factory->user->create();
+        $user_id = $this->factory->user->create(array('role' => 'server_enzymes_coder'));
         add_user_meta($user_id, 'sample-name', '
         list($a) = $arguments;
         $b = 20;
@@ -632,7 +663,7 @@ class Enzymes3Test
 
     function test_executed_author_with_many_arguments()
     {
-        $user_id = $this->factory->user->create();
+        $user_id = $this->factory->user->create(array('role' => 'server_enzymes_coder'));
         add_user_meta($user_id, 'sample-name', '
         list($a, $b, $c) = $arguments;
         $result = $a * $b - $c;
@@ -650,7 +681,7 @@ class Enzymes3Test
 
     function test_executed_author_with_an_array_argument()
     {
-        $user_id = $this->factory->user->create();
+        $user_id = $this->factory->user->create(array('role' => 'server_enzymes_coder'));
         add_user_meta($user_id, 'sample-name', '
         list($a, $bc) = $arguments;
         $result = $a * array_sum($bc);
@@ -668,7 +699,7 @@ class Enzymes3Test
 
     function test_executed_author_with_a_hash_argument()
     {
-        $user_id = $this->factory->user->create();
+        $user_id = $this->factory->user->create(array('role' => 'server_enzymes_coder'));
         add_user_meta($user_id, 'sample-name', '
         list($hash) = $arguments;
         $result = $hash["a hundred"] * array_sum($hash["twenty and three"]);
