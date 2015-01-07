@@ -74,7 +74,7 @@ class EnzymesPlugin
      *
      */
     static public
-    function uninstall()
+    function on_uninstall()
     {
 
     }

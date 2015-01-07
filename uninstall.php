@@ -6,4 +6,4 @@ if (basename(dirname(__FILE__)) != dirname(WP_UNINSTALL_PLUGIN))
 }
 
 require 'EnzymesPlugin.php';
-EnzymesPlugin::uninstall();
+EnzymesPlugin::on_uninstall();
