@@ -4,6 +4,22 @@ require_once 'Sequence.php';
 
 class Enzymes3
 {
+    static public
+    function capabilities() {
+        $result = array(
+                'enzymes.inject'                       => 'It allows a user to inject enzymes into her posts.',
+                'enzymes.use_own_attributes'           => 'It allows a user to make her enzymes with her own attributes.',
+                'enzymes.use_others_attributes'        => 'It allows a user to make her enzymes with others\' attributes.',
+                'enzymes.use_own_custom_fields'        => 'It allows a user to make her enzymes with her own custom fields.',
+                'enzymes.use_others_custom_fields'     => 'It allows a user to make her enzymes with others\' custom fields.',
+                'enzymes.create_static_custom_fields'  => 'It allows a user to create enzymes from non-evaluated custom fields.',
+                'enzymes.create_dynamic_custom_fields' => 'It allows a user to create enzymes from evaluated custom fields.',
+                'enzymes.share_static_custom_fields'   => 'It allows a user to share her enzymes from non-evaluated custom fields.',
+                'enzymes.share_dynamic_custom_fields'  => 'It allows a user to share her enzymes from evaluated custom fields.',
+        );
+        return $result;
+    }
+
     /**
      * @var bool
      */
@@ -260,7 +276,6 @@ class Enzymes3
     {
         $this->init_grammar();
         $this->init_expressions();
-        $this->add_roles_and_capabilities();
     }
 
     /**
@@ -910,67 +925,5 @@ class Enzymes3
         $result = $this->new_content . $after;
 
         return $result;
-    }
-
-    /**
-     * Add capabilities.
-     */
-    protected
-    function add_roles_and_capabilities()
-    {
-        $capabilities = array(
-                'enzymes.inject'                       => 'It allows a user to inject enzymes into her posts.',
-                'enzymes.use_own_attributes'           => 'It allows a user to make her enzymes with her own attributes.',
-                'enzymes.use_others_attributes'        => 'It allows a user to make her enzymes with others\' attributes.',
-                'enzymes.use_own_custom_fields'        => 'It allows a user to make her enzymes with her own custom fields.',
-                'enzymes.use_others_custom_fields'     => 'It allows a user to make her enzymes with others\' custom fields.',
-                'enzymes.create_static_custom_fields'  => 'It allows a user to create enzymes from non-evaluated custom fields.',
-                'enzymes.create_dynamic_custom_fields' => 'It allows a user to create enzymes from evaluated custom fields.',
-                'enzymes.share_static_custom_fields'   => 'It allows a user to share her enzymes from non-evaluated custom fields.',
-                'enzymes.share_dynamic_custom_fields'  => 'It allows a user to share her enzymes from evaluated custom fields.',
-        );
-
-        remove_role('enzymes.User');
-        $user_role = add_role('enzymes.User', __('Enzymes User'), array(
-                'enzymes.inject'                       => true,
-                'enzymes.use_own_attributes'           => true,
-                'enzymes.use_others_attributes'        => false,
-                'enzymes.use_own_custom_fields'        => true,
-                'enzymes.use_others_custom_fields'     => false,
-                'enzymes.create_static_custom_fields'  => true,
-                'enzymes.create_dynamic_custom_fields' => false,
-                'enzymes.share_static_custom_fields'   => false,
-                'enzymes.share_dynamic_custom_fields'  => false,
-        ));
-
-        remove_role('enzymes.PrivilegedUser');
-        $privileged_user_role = add_role('enzymes.PrivilegedUser', __('Enzymes Privileged User'),
-                                         array_merge($user_role->capabilities, array(
-                                                 'enzymes.use_others_custom_fields' => true,
-                                         )));
-
-        remove_role('enzymes.TrustedUser');
-        $trusted_user_role = add_role('enzymes.TrustedUser', __('Enzymes Trusted User'),
-                                      array_merge($privileged_user_role->capabilities, array(
-                                              'enzymes.share_static_custom_fields' => true,
-                                      )));
-
-        remove_role('enzymes.Coder');
-        $coder_role = add_role('enzymes.Coder', __('Enzymes Coder'),
-                               array_merge($trusted_user_role->capabilities, array(
-                                       'enzymes.create_dynamic_custom_fields' => true,
-                               )));
-
-        remove_role('enzymes.TrustedCoder');
-        $trusted_coder_role = add_role('enzymes.TrustedCoder', __('Enzymes Trusted Coder'),
-                                       array_merge($coder_role->capabilities, array(
-                                               'enzymes.share_dynamic_custom_fields' => true,
-                                       )));
-
-        global $wp_roles;
-        /* @var $wp_roles WP_Roles */
-        foreach (array_keys($user_role->capabilities) as $cap) {
-            $wp_roles->add_cap('administrator', $cap);
-        }
     }
 }

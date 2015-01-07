@@ -12,5 +12,4 @@ License: GPLv2 or later
 define('ENZYMES_FILENAME', __FILE__);
 require 'EnzymesPlugin.php';
 
-//just comment the following line if you need to temporarily disable this plugin
 $enzymesPlugin = new EnzymesPlugin();
