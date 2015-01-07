@@ -5,7 +5,8 @@ require_once 'Sequence.php';
 class Enzymes3
 {
     static public
-    function capabilities() {
+    function capabilities()
+    {
         $result = array(
                 'enzymes.inject'                       => 'It allows a user to inject enzymes into her posts.',
                 'enzymes.use_own_attributes'           => 'It allows a user to make her enzymes with her own attributes.',
@@ -95,11 +96,19 @@ class Enzymes3
     protected $e_comment;
 
     /**
-     * Regular expression for matching spaces and space-like characters.
+     * Regular expression for matching unbreakable space characters (\xC2\xA0).
+     * These characters appear sporadically and unpredictably into WordPress.
      *
      * @var Ando_Regex
      */
-    protected $e_blank;
+    protected $e_unbreakable_space;
+
+    /**
+     * Regular expression for matching spaces and unbreakable space characters.
+     *
+     * @var Ando_Regex
+     */
+    protected $e_all_spaces;
 
     /**
      * Regular expression for matching "\{\[", "\]\}".
@@ -266,7 +275,8 @@ class Enzymes3
 
         $this->e_comment = new Ando_Regex('\/\*.*?\*\/', '@@s');
         // for some reason WP introduces some C2 (hex) chars when writing a post...
-        $this->e_blank = new Ando_Regex('(?:\s|\xC2\xA0)+', '@@');
+        $this->e_unbreakable_space = new Ando_Regex('\xC2\xA0', '@@');
+        $this->e_all_spaces = new Ando_Regex('(?:\s|\xC2\xA0)+', '@@');
         $this->e_escaped_injection_delimiter = new Ando_Regex('\\\\([{[\]}])', '@@');
         $this->e_escaped_string_delimiter = new Ando_Regex('\\\\=', '@@');
     }
@@ -791,7 +801,8 @@ class Enzymes3
         $outside = $string
                 ? $before_string
                 : $anything_else;
-        $result = preg_replace($this->e_blank, '', $outside) . $string;
+        $result = preg_replace($this->e_all_spaces, '', $outside) .
+                  preg_replace($this->e_unbreakable_space, ' ', $string);  // normal spaces are meaningful in $string
         return $result;
     }
 
