@@ -266,7 +266,7 @@ class Enzymes3
 
         $this->e_comment = new Ando_Regex('\/\*.*?\*\/', '@@s');
         // for some reason WP introduces some C2 (hex) chars when writing a post...
-        $this->e_blank = new Ando_Regex('(?:\s|\xc2)+', '@@');
+        $this->e_blank = new Ando_Regex('(?:\s|\xC2\xA0)+', '@@');
         $this->e_escaped_injection_delimiter = new Ando_Regex('\\\\([{[\]}])', '@@');
         $this->e_escaped_string_delimiter = new Ando_Regex('\\\\=', '@@');
     }
