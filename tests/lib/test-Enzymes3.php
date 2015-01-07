@@ -523,7 +523,7 @@ class Enzymes3Test
 
     function test_transcluded_author_from_another_post()
     {
-        $user_1_id = $this->factory->user->create(array('role' => 'enzymes.User'));
+        $user_1_id = $this->factory->user->create(array('role' => 'enzymes.PrivilegedUser'));
         add_user_meta($user_1_id, 'sample-name', 'sample value 1');
         $post_1_id = $this->factory->post->create(array('post_author' => $user_1_id));
         $post_1 = get_post($post_1_id);
@@ -541,7 +541,7 @@ class Enzymes3Test
 
     function test_transcluded_author_from_another_post_by_slug()
     {
-        $user_1_id = $this->factory->user->create(array('role' => 'enzymes.User'));
+        $user_1_id = $this->factory->user->create(array('role' => 'enzymes.PrivilegedUser'));
         add_user_meta($user_1_id, 'sample-name', 'sample value 1');
         $post_1_id = $this->factory->post->create(array('post_author' => $user_1_id));
         $post_1 = get_post($post_1_id);

@@ -4,8 +4,14 @@ require_once 'Sequence.php';
 
 class Enzymes3
 {
+    /**
+     * @var bool
+     */
     public $debug_on = false;
 
+    /**
+     * @param mixed $something
+     */
     public
     function debug_print( $something )
     {
@@ -20,7 +26,7 @@ class Enzymes3
      *
      * @var WP_Post
      */
-    protected $post;
+    protected $current_post;
 
     /**
      * The content of the post, modified by Enzymes.
@@ -258,18 +264,26 @@ class Enzymes3
     }
 
     /**
-     * @param array $actual
+     * Set to the empty string all keys passed as additional arguments.
+     *
+     * @param array $hash
      */
     protected
-    function default_empty( array &$actual )
+    function default_empty( array &$hash )
     {
         $keys = func_get_args();
         array_shift($keys);
         $default = array_fill_keys($keys, '');
-        $actual = array_merge($default, $actual);
+        $hash = array_merge($default, $hash);
     }
 
     /**
+     * Evaluate code, putting arguments in the execution context ($this is always available).
+     * Return an indexed array with the PHP returned value (result) and output buffering contents (output).
+     *
+     * Inside the code, the arguments can easily be accessed with an expression like this:
+     *   list($some, $variables) = $arguments;
+     *
      * @param string $code
      * @param array  $arguments
      *
@@ -278,8 +292,6 @@ class Enzymes3
     protected
     function safe_eval( $code, array $arguments = array() )
     {
-        // use an expression like this inside a custom field value:
-        // list($some, $appropriate, $variable, $name) = $arguments;
         ob_start();
         $result = eval($code);
         $output = ob_get_contents();
@@ -288,6 +300,8 @@ class Enzymes3
     }
 
     /**
+     * Get the matched post object.
+     *
      * @param array $matches
      *
      * @return null|WP_Post
@@ -301,7 +315,7 @@ class Enzymes3
         /* @var $slug string */
         switch (true) {
             case ($post == ''):
-                $result = $this->post;
+                $result = $this->current_post;
                 break;
             case ($post[0] == '@'):
                 $result = get_page_by_path($slug, OBJECT, 'post');
@@ -317,6 +331,8 @@ class Enzymes3
     }
 
     /**
+     * Unwrap an enzymes string from its quotes, while also un-escaping escaped quotes.
+     *
      * @param string $string
      *
      * @return mixed|string
@@ -330,10 +346,12 @@ class Enzymes3
     }
 
     /**
+     * Get the matched custom field from the post object.
+     *
      * @param WP_Post $post_object
      * @param array   $matches
      *
-     * @return string|array
+     * @return mixed
      */
     protected
     function wp_post_field( $post_object, array $matches )
@@ -355,6 +373,8 @@ class Enzymes3
     }
 
     /**
+     * Get the matched attribute from the post object.
+     *
      * @param WP_Post $post_object
      * @param array   $matches
      *
@@ -370,18 +390,20 @@ class Enzymes3
         if ( $string ) {
             $field = $this->unquote($field);
         }
-        if ( ! property_exists($post_object, $field) ) {
-            return "($field)";
-        }
-        $result = $post_object->$field;
+//        if ( ! property_exists($post_object, $field) ) {
+//            return "($field)";
+//        }
+        $result = @$post_object->$field;
         return $result;
     }
 
     /**
+     * Get the matched custom field from the user object.
+     *
      * @param WP_User $user_object
      * @param array   $matches
      *
-     * @return string|array
+     * @return mixed
      */
     protected
     function wp_user_field( $user_object, array $matches )
@@ -403,6 +425,8 @@ class Enzymes3
     }
 
     /**
+     * Get the matched attribute from the user object.
+     *
      * @param WP_User $user_object
      * @param array   $matches
      *
@@ -423,6 +447,8 @@ class Enzymes3
     }
 
     /**
+     * Get the author of the post.
+     *
      * @param WP_Post $post_object
      *
      * @return WP_User
@@ -435,12 +461,36 @@ class Enzymes3
         return $result;
     }
 
+    /**
+     * True if the post belongs to the current post's author.
+     *
+     * @param WP_Post $post_object
+     *
+     * @return bool
+     */
+    protected
+    function belongs_to_current_author( $post_object )
+    {
+        $result = $this->current_post->post_author == $post_object->post_author;
+        return $result;
+    }
+
+    /**
+     * Execute code according to authors capabilities.
+     *
+     * @param string  $code
+     * @param array   $arguments
+     * @param WP_Post $post_object
+     *
+     * @return null
+     */
     protected
     function execute_code( $code, $arguments, $post_object )
     {
         if ( author_can($post_object, 'enzymes.create_dynamic_custom_fields') &&
-             ($this->post->ID == $post_object->ID ||
-              author_can($post_object, 'enzymes.share_dynamic_custom_fields'))
+             ($this->belongs_to_current_author($post_object) ||
+              author_can($post_object, 'enzymes.share_dynamic_custom_fields') &&
+              author_can($this->current_post, 'enzymes.use_others_custom_fields'))
         ) {
             list($result,) = $this->safe_eval($code, $arguments);
         } else {
@@ -450,6 +500,8 @@ class Enzymes3
     }
 
     /**
+     * Execute a custom field from a post.
+     *
      * @param string  $post_item
      * @param integer $num_args
      *
@@ -474,6 +526,8 @@ class Enzymes3
     }
 
     /**
+     * Execute a custom field from a user.
+     *
      * @param string  $author_item
      * @param integer $num_args
      *
@@ -498,6 +552,8 @@ class Enzymes3
     }
 
     /**
+     * Execute the matched enzyme.
+     *
      * @param array $matches
      *
      * @return array|null
@@ -538,15 +594,28 @@ class Enzymes3
         return $result;
     }
 
+    /**
+     * Transclude code according to authors capabilities.
+     *
+     * @param string  $code
+     * @param WP_Post $post_object
+     *
+     * @return string
+     */
     protected
     function transclude_code( $code, $post_object )
     {
         if ( author_can($post_object, 'enzymes.create_dynamic_custom_fields') &&
-             ($this->post->ID == $post_object->ID ||
-              author_can($post_object, 'enzymes.share_dynamic_custom_fields'))
+             ($this->belongs_to_current_author($post_object) ||
+              author_can($post_object, 'enzymes.share_dynamic_custom_fields') &&
+              author_can($this->current_post, 'enzymes.use_others_custom_fields'))
         ) {
             list(, $output) = $this->safe_eval(" ?>$code<?php ");
-        } elseif ( author_can($post_object, 'enzymes.create_static_custom_fields') ) {
+        } elseif ( author_can($post_object, 'enzymes.create_static_custom_fields') &&
+                   ($this->belongs_to_current_author($post_object) ||
+                    author_can($post_object, 'enzymes.share_static_custom_fields') &&
+                    author_can($this->current_post, 'enzymes.use_others_custom_fields'))
+        ) {
             $output = $code;
         } else {
             $output = '';
@@ -555,6 +624,8 @@ class Enzymes3
     }
 
     /**
+     * Transclude a custom field from a post.
+     *
      * @param string  $post_item
      * @param WP_Post $post_object
      *
@@ -574,24 +645,8 @@ class Enzymes3
     }
 
     /**
-     * @param string  $post_attr
-     * @param WP_Post $post_object
+     * Transclude a custom field from a user.
      *
-     * @return mixed
-     * @throws Ando_Exception
-     */
-    protected
-    function transclude_post_attr( $post_attr, $post_object )
-    {
-        $this->debug_print('transcluding post_attr');
-        $expression = $this->grammar['post_attr']->wrapper_set('@@')
-                                                 ->expression(true);
-        preg_match($expression, $post_attr, $matches);
-        $result = $this->wp_post_attribute($post_object, $matches);
-        return $result;
-    }
-
-    /**
      * @param string  $author_item
      * @param WP_Post $post_object
      *
@@ -612,6 +667,35 @@ class Enzymes3
     }
 
     /**
+     * Transclude an attribute from a post.
+     *
+     * @param string  $post_attr
+     * @param WP_Post $post_object
+     *
+     * @return mixed
+     * @throws Ando_Exception
+     */
+    protected
+    function transclude_post_attr( $post_attr, $post_object )
+    {
+        $this->debug_print('transcluding post_attr');
+        $same_author = $this->belongs_to_current_author($post_object);
+        if ( $same_author && author_can($post_object, 'enzymes.use_own_attributes') ||
+             ! $same_author && author_can($this->current_post, 'enzymes.use_others_attributes')
+        ) {
+            $expression = $this->grammar['post_attr']->wrapper_set('@@')
+                                                     ->expression(true);
+            preg_match($expression, $post_attr, $matches);
+            $result = $this->wp_post_attribute($post_object, $matches);
+        } else {
+            $result = null;
+        }
+        return $result;
+    }
+
+    /**
+     * Transclude an attribute from a user.
+     *
      * @param string  $author_attr
      * @param WP_Post $post_object
      *
@@ -622,15 +706,24 @@ class Enzymes3
     function transclude_author_attr( $author_attr, $post_object )
     {
         $this->debug_print('transcluding author_attr');
-        $expression = $this->grammar['author_attr']->wrapper_set('@@')
-                                                   ->expression(true);
-        preg_match($expression, $author_attr, $matches);
-        $user_object = $this->wp_author($post_object);
-        $result = $this->wp_user_attribute($user_object, $matches);
+        $same_author = $this->belongs_to_current_author($post_object);
+        if ( $same_author && author_can($post_object, 'enzymes.use_own_attributes') ||
+             ! $same_author && author_can($this->current_post, 'enzymes.use_others_attributes')
+        ) {
+            $expression = $this->grammar['author_attr']->wrapper_set('@@')
+                                                       ->expression(true);
+            preg_match($expression, $author_attr, $matches);
+            $user_object = $this->wp_author($post_object);
+            $result = $this->wp_user_attribute($user_object, $matches);
+        } else {
+            $result = null;
+        }
         return $result;
     }
 
     /**
+     * Transclude the matched enzyme.
+     *
      * @param array $matches
      *
      * @return null|string
@@ -666,6 +759,8 @@ class Enzymes3
     }
 
     /**
+     * Remove white space from the matched sequence.
+     *
      * @param array $matches
      *
      * @return string
@@ -685,6 +780,13 @@ class Enzymes3
         return $result;
     }
 
+    /**
+     * Remove noise the matched sequence.
+     *
+     * @param string $sequence
+     *
+     * @return string
+     */
     protected
     function clean_up( $sequence )
     {
@@ -703,6 +805,8 @@ class Enzymes3
     }
 
     /**
+     * Process the enzymes in the matched sequence.
+     *
      * @param string $could_be_sequence
      *
      * @return array|null|string
@@ -751,6 +855,8 @@ class Enzymes3
     }
 
     /**
+     * True if there is an injected sequence.
+     *
      * @param string $content
      * @param array  $matches
      *
@@ -764,6 +870,8 @@ class Enzymes3
     }
 
     /**
+     * Process the injected sequences in the content we are filtering.
+     *
      * @param string       $content
      * @param null|WP_Post $default_post
      *
@@ -772,13 +880,13 @@ class Enzymes3
     public
     function metabolize( $content, $default_post = null )
     {
-        $this->post = is_object($default_post)
+        $this->current_post = is_object($default_post)
                 ? $default_post
                 : get_post();
-        if ( is_null($this->post) ) {
+        if ( is_null($this->current_post) ) {
             return $content;
         }
-        if ( ! author_can($this->post, 'enzymes.inject') ) {
+        if ( ! author_can($this->current_post, 'enzymes.inject') ) {
             return $content;
         }
         if ( ! $this->there_is_an_injection($content, $matches) ) {
@@ -804,6 +912,9 @@ class Enzymes3
         return $result;
     }
 
+    /**
+     * Add capabilities.
+     */
     protected
     function add_roles_and_capabilities()
     {
@@ -832,22 +943,27 @@ class Enzymes3
                 'enzymes.share_dynamic_custom_fields'  => false,
         ));
 
+        remove_role('enzymes.PrivilegedUser');
+        $privileged_user_role = add_role('enzymes.PrivilegedUser', __('Enzymes Privileged User'),
+                                         array_merge($user_role->capabilities, array(
+                                                 'enzymes.use_others_custom_fields' => true,
+                                         )));
+
         remove_role('enzymes.TrustedUser');
         $trusted_user_role = add_role('enzymes.TrustedUser', __('Enzymes Trusted User'),
-                                      array_merge($user_role->capabilities, array(
+                                      array_merge($privileged_user_role->capabilities, array(
                                               'enzymes.share_static_custom_fields' => true,
                                       )));
 
         remove_role('enzymes.Coder');
         $coder_role = add_role('enzymes.Coder', __('Enzymes Coder'),
-                               array_merge($user_role->capabilities, array(
+                               array_merge($trusted_user_role->capabilities, array(
                                        'enzymes.create_dynamic_custom_fields' => true,
                                )));
 
         remove_role('enzymes.TrustedCoder');
         $trusted_coder_role = add_role('enzymes.TrustedCoder', __('Enzymes Trusted Coder'),
                                        array_merge($coder_role->capabilities, array(
-                                               'enzymes.share_static_custom_fields' => true,
                                                'enzymes.share_dynamic_custom_fields' => true,
                                        )));
 
