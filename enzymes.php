@@ -10,6 +10,6 @@ License: GPLv2 or later
 */
 
 define('ENZYMES_FILENAME', __FILE__);
-require 'EnzymesPlugin.php';
+require dirname(ENZYMES_FILENAME) . '/lib/EnzymesPlugin.php';
 
 $enzymesPlugin = new EnzymesPlugin();

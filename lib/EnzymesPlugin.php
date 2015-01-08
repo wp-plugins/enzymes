@@ -1,5 +1,5 @@
 <?php
-require_once 'lib/Enzymes3.php';
+require_once 'Enzymes3.php';
 
 class EnzymesPlugin
 {
