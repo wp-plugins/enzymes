@@ -21,7 +21,7 @@ class Enzymes3Test
     function get_method( $name )
     {
         if ( is_null($this->reflection) ) {
-            $this->class = str_replace('Test', '', __CLASS__);
+            $this->class      = str_replace('Test', '', __CLASS__);
             $this->reflection = new \ReflectionClass($this->class);
         }
         if ( ! $this->reflection->hasMethod($name) ) {
@@ -53,15 +53,15 @@ class Enzymes3Test
         parent::setUp();
 
         $admin_id = $this->factory->user->create(array(
-                                                      'role' => 'administrator'
-                                              ));
+                'role' => 'administrator'
+        ));
         global $current_user;
         $current_user = new WP_User($admin_id);
 
         $global_post_id = $this->factory->post->create(array(
-                                                               'post_author' => $admin_id,
-                                                               'post_title'  => 'This is the global post.'
-                                                       ));
+                'post_author' => $admin_id,
+                'post_title'  => 'This is the global post.'
+        ));
         global $post;
         $post = get_post($global_post_id);
     }
@@ -128,7 +128,7 @@ class Enzymes3Test
     {
         // case when the initial array is not empty
         $values = array(
-                'one' => 1,
+                'one'   => 1,
                 'three' => 3,
         );
         $this->call_method('default_empty', array(&$values, 'one', 'two'));
@@ -167,7 +167,7 @@ class Enzymes3Test
         global $post;
 
         $target_post_id = $this->factory->post->create(array('post_title' => 'This is the target post.'));
-        $target = get_post($target_post_id);
+        $target         = get_post($target_post_id);
 
         $enzymes = new Enzymes3();
 
@@ -214,7 +214,7 @@ class Enzymes3Test
         $this->assertEquals('sample-value', $result);
 
         $result = $this->call_method('wp_post_field',
-                                     array($post, array('field' => '=sample name=', 'string' => '=sample name=')));
+                array($post, array('field' => '=sample name=', 'string' => '=sample name=')));
         $this->assertEquals('sample value', $result);
     }
 
@@ -222,8 +222,8 @@ class Enzymes3Test
     {
         $user_id = $this->factory->user->create();
         $post_id = $this->factory->post->create(array('post_author' => $user_id));
-        $post = get_post($post_id);
-        $result = $this->call_method('wp_author', array($post));
+        $post    = get_post($post_id);
+        $result  = $this->call_method('wp_author', array($post));
         $this->assertEquals($user_id, $result->ID);
     }
 
@@ -423,7 +423,7 @@ class Enzymes3Test
         $result = $hash["a hundred"] * array_sum($hash["twenty and three"]);
         return $result;
         ');
-        $post = get_post($post_id);
+        $post    = get_post($post_id);
         $enzymes = new Enzymes3();
 
         $content1 = 'Before "{[ =whatever here= | =a hundred= | 100 | =twenty and three= | 20 | 3 | array(2) | hash(2) | .sample-name(1) ]}" and after.';
@@ -445,7 +445,7 @@ class Enzymes3Test
          */
         $enzymes = new Enzymes3();
 
-        $attrs = array(
+        $attrs       = array(
             // Properties extracted from the columns of the user table.
             'ID',
             'user_login',
@@ -480,11 +480,11 @@ class Enzymes3Test
             'closedpostboxes_post',
             'metaboxhidden_post',
         );
-        $attrs_seq = ' /author:' . implode(' | /author:', $attrs);
+        $attrs_seq   = ' /author:' . implode(' | /author:', $attrs);
         $attrs_count = count($attrs);
 
         // This role is not really needed for attributes, but it makes my test easier to write.
-        $user = $this->factory->user->create_and_get(array('role' => Enzymes3::PREFIX . 'Coder'));
+        $user = $this->factory->user->create_and_get(array('role' => EnzymesCapabilities::Coder));
         $data = array();
         foreach ($attrs as $key) {
             $data[$key] = $user->$key;
@@ -492,7 +492,7 @@ class Enzymes3Test
         $data = "(" . implode(")(", $data) . ")";
 
         $post_id = $this->factory->post->create(array('post_author' => $user->ID));
-        $code = '
+        $code    = '
         list($data) = $arguments;
         $result = "(" . implode(")(", $data) . ")";
         return $result;
@@ -507,11 +507,11 @@ class Enzymes3Test
 
     function test_transcluded_author_from_current_post()
     {
-        $user_id = $this->factory->user->create(array('role' => Enzymes3::PREFIX . 'User'));
+        $user_id = $this->factory->user->create(array('role' => EnzymesCapabilities::User));
         add_user_meta($user_id, 'sample-name', 'sample-value');
         add_user_meta($user_id, 'sample name', 'sample value');
         $post_id = $this->factory->post->create(array('post_author' => $user_id));
-        $post = get_post($post_id);
+        $post    = get_post($post_id);
 
         $enzymes = new Enzymes3();
 
@@ -522,12 +522,12 @@ class Enzymes3Test
 
     function test_transcluded_author_from_another_post()
     {
-        $user_1_id = $this->factory->user->create(array('role' => Enzymes3::PREFIX . 'PrivilegedUser'));
+        $user_1_id = $this->factory->user->create(array('role' => EnzymesCapabilities::PrivilegedUser));
         add_user_meta($user_1_id, 'sample-name', 'sample value 1');
         $post_1_id = $this->factory->post->create(array('post_author' => $user_1_id));
-        $post_1 = get_post($post_1_id);
+        $post_1    = get_post($post_1_id);
 
-        $user_2_id = $this->factory->user->create(array('role' => Enzymes3::PREFIX . 'TrustedUser'));
+        $user_2_id = $this->factory->user->create(array('role' => EnzymesCapabilities::TrustedUser));
         add_user_meta($user_2_id, 'sample-name', 'sample value 2');
         $post_2_id = $this->factory->post->create(array('post_author' => $user_2_id));
 
@@ -540,17 +540,17 @@ class Enzymes3Test
 
     function test_transcluded_author_from_another_post_by_slug()
     {
-        $user_1_id = $this->factory->user->create(array('role' => Enzymes3::PREFIX . 'PrivilegedUser'));
+        $user_1_id = $this->factory->user->create(array('role' => EnzymesCapabilities::PrivilegedUser));
         add_user_meta($user_1_id, 'sample-name', 'sample value 1');
         $post_1_id = $this->factory->post->create(array('post_author' => $user_1_id));
-        $post_1 = get_post($post_1_id);
+        $post_1    = get_post($post_1_id);
 
-        $user_2_id = $this->factory->user->create(array('role' => Enzymes3::PREFIX . 'TrustedUser'));
+        $user_2_id = $this->factory->user->create(array('role' => EnzymesCapabilities::TrustedUser));
         add_user_meta($user_2_id, 'sample-name', 'sample value 2');
         $post_2_id = $this->factory->post->create(array(
-                                                          'post_author' => $user_2_id,
-                                                          'post_title'  => 'This is the target post.'
-                                                  ));
+                'post_author' => $user_2_id,
+                'post_title'  => 'This is the target post.'
+        ));
 
         $enzymes = new Enzymes3();
 
@@ -570,7 +570,7 @@ class Enzymes3Test
          */
         $enzymes = new Enzymes3();
 
-        $attrs = array(
+        $attrs       = array(
             // Properties extracted from the columns of the  table.
             'ID',
             'post_author',
@@ -597,7 +597,7 @@ class Enzymes3Test
             'guid',
             'post_mime_type',
         );
-        $attrs_seq = ':' . implode(' | :', $attrs);
+        $attrs_seq   = ':' . implode(' | :', $attrs);
         $attrs_count = count($attrs);
 
         $post = $this->factory->post->create_and_get();
@@ -608,7 +608,7 @@ class Enzymes3Test
         $data = "(" . implode(")(", $data) . ")";
 
         $post_id = $post->ID;
-        $code = '
+        $code    = '
         list($data) = $arguments;
         $result = "(" . implode(")(", $data) . ")";
         return $result;
@@ -622,7 +622,7 @@ class Enzymes3Test
 
     function test_executed_author_with_no_arguments()
     {
-        $user_id = $this->factory->user->create(array('role' => Enzymes3::PREFIX . 'Coder'));
+        $user_id = $this->factory->user->create(array('role' => EnzymesCapabilities::Coder));
         add_user_meta($user_id, 'sample-name', '
         $a = 100;
         $b = 20;
@@ -631,7 +631,7 @@ class Enzymes3Test
         return $result;
         ');
         $post_id = $this->factory->post->create(array('post_author' => $user_id));
-        $post = get_post($post_id);
+        $post    = get_post($post_id);
 
         $enzymes = new Enzymes3();
 
@@ -642,7 +642,7 @@ class Enzymes3Test
 
     function test_executed_author_with_one_argument()
     {
-        $user_id = $this->factory->user->create(array('role' => Enzymes3::PREFIX . 'Coder'));
+        $user_id = $this->factory->user->create(array('role' => EnzymesCapabilities::Coder));
         add_user_meta($user_id, 'sample-name', '
         list($a) = $arguments;
         $b = 20;
@@ -651,7 +651,7 @@ class Enzymes3Test
         return $result;
         ');
         $post_id = $this->factory->post->create(array('post_author' => $user_id));
-        $post = get_post($post_id);
+        $post    = get_post($post_id);
 
         $enzymes = new Enzymes3();
 
@@ -662,14 +662,14 @@ class Enzymes3Test
 
     function test_executed_author_with_many_arguments()
     {
-        $user_id = $this->factory->user->create(array('role' => Enzymes3::PREFIX . 'Coder'));
+        $user_id = $this->factory->user->create(array('role' => EnzymesCapabilities::Coder));
         add_user_meta($user_id, 'sample-name', '
         list($a, $b, $c) = $arguments;
         $result = $a * $b - $c;
         return $result;
         ');
         $post_id = $this->factory->post->create(array('post_author' => $user_id));
-        $post = get_post($post_id);
+        $post    = get_post($post_id);
 
         $enzymes = new Enzymes3();
 
@@ -680,14 +680,14 @@ class Enzymes3Test
 
     function test_executed_author_with_an_array_argument()
     {
-        $user_id = $this->factory->user->create(array('role' => Enzymes3::PREFIX . 'Coder'));
+        $user_id = $this->factory->user->create(array('role' => EnzymesCapabilities::Coder));
         add_user_meta($user_id, 'sample-name', '
         list($a, $bc) = $arguments;
         $result = $a * array_sum($bc);
         return $result;
         ');
         $post_id = $this->factory->post->create(array('post_author' => $user_id));
-        $post = get_post($post_id);
+        $post    = get_post($post_id);
 
         $enzymes = new Enzymes3();
 
@@ -698,14 +698,14 @@ class Enzymes3Test
 
     function test_executed_author_with_a_hash_argument()
     {
-        $user_id = $this->factory->user->create(array('role' => Enzymes3::PREFIX . 'Coder'));
+        $user_id = $this->factory->user->create(array('role' => EnzymesCapabilities::Coder));
         add_user_meta($user_id, 'sample-name', '
         list($hash) = $arguments;
         $result = $hash["a hundred"] * array_sum($hash["twenty and three"]);
         return $result;
         ');
         $post_id = $this->factory->post->create(array('post_author' => $user_id));
-        $post = get_post($post_id);
+        $post    = get_post($post_id);
 
         $enzymes = new Enzymes3();
 

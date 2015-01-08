@@ -1,6 +1,7 @@
 <?php
 
-class EnzymesCapabilities {
+class EnzymesCapabilities
+{
 
 //@formatter:off
     const inject                       = 'enzymes.inject';                        // It allows a user to inject enzymes into her posts.
@@ -21,6 +22,8 @@ class EnzymesCapabilities {
 //@formatter:on
 
     /**
+     * Indexed array of all the capabilities.
+     *
      * @return array
      */
     static public
@@ -40,45 +43,75 @@ class EnzymesCapabilities {
         return $result;
     }
 
+    /**
+     * Associative array of the capabilities for an Enzymes User.
+     *
+     * @return array
+     */
     public static
-    function for_User() {
+    function for_User()
+    {
         $result = array_merge(array_fill_keys(self::all(), false), array(
-                self::inject,
-                self::use_own_attributes,
-                self::use_own_custom_fields,
-                self::create_static_custom_fields,
+                self::inject                      => true,
+                self::use_own_attributes          => true,
+                self::use_own_custom_fields       => true,
+                self::create_static_custom_fields => true,
         ));
         return $result;
     }
 
+    /**
+     * Associative array of the capabilities for an Enzymes PrivilegedUser.
+     *
+     * @return array
+     */
     public static
-    function for_PrivilegedUser() {
+    function for_PrivilegedUser()
+    {
         $result = array_merge(self::for_User(), array(
-                self::use_others_custom_fields,
+                self::use_others_custom_fields => true,
         ));
         return $result;
     }
 
+    /**
+     * Associative array of the capabilities for an Enzymes TrustedUser.
+     *
+     * @return array
+     */
     public static
-    function for_TrustedUser() {
+    function for_TrustedUser()
+    {
         $result = array_merge(self::for_PrivilegedUser(), array(
-                self::use_others_custom_fields,
+                self::share_static_custom_fields => true,
         ));
         return $result;
     }
 
+    /**
+     * Associative array of the capabilities for an Enzymes Coder.
+     *
+     * @return array
+     */
     public static
-    function for_Coder() {
+    function for_Coder()
+    {
         $result = array_merge(self::for_TrustedUser(), array(
-                self::use_others_custom_fields,
+                self::create_dynamic_custom_fields => true,
         ));
         return $result;
     }
 
+    /**
+     * Associative array of the capabilities for an Enzymes TrustedCoder.
+     *
+     * @return array
+     */
     public static
-    function for_TrustedCoder() {
+    function for_TrustedCoder()
+    {
         $result = array_merge(self::for_Coder(), array(
-                self::use_others_custom_fields,
+                self::share_dynamic_custom_fields => true,
         ));
         return $result;
     }
