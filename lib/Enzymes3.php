@@ -1,5 +1,5 @@
 <?php
-require_once 'Ando/Regex.php';
+require_once dirname(ENZYMES_FILENAME) . '/vendor/Ando/Regex.php';
 require_once 'Sequence.php';
 
 class Enzymes3
