@@ -9,7 +9,7 @@ class Enzymes3
     const PREFIX = 'enzymes.';
 
     /**
-     * @var EnzymesOption
+     * @var EnzymesOptions
      */
     protected $options;
 
@@ -278,7 +278,7 @@ class Enzymes3
     {
         $this->init_grammar();
         $this->init_expressions();
-        $this->options = new EnzymesOption(self::PREFIX);
+        $this->options = new EnzymesOptions(self::PREFIX);
     }
 
     /**

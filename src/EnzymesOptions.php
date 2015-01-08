@@ -1,6 +1,6 @@
 <?php
 
-class EnzymesOption
+class EnzymesOptions
 {
     /**
      * @var string

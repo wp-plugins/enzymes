@@ -3,6 +3,10 @@ require_once 'Enzymes3.php';
 
 class EnzymesPlugin
 {
+    /**
+     * @var EnzymesOptions
+     */
+    static protected $options;
 
     /**
      * Singleton
@@ -26,6 +30,8 @@ class EnzymesPlugin
     public
     function __construct()
     {
+        self::$options = new EnzymesOptions(Enzymes3::PREFIX);
+
         register_activation_hook(ENZYMES_FILENAME, array('EnzymesPlugin', 'on_activation'));
         register_deactivation_hook(ENZYMES_FILENAME, array('EnzymesPlugin', 'on_deactivation'));
 
@@ -52,7 +58,7 @@ class EnzymesPlugin
     static public
     function on_activation()
     {
-        self::add_plugin_options();
+        self::$options->keysSet(array('activated_on' => date('Y-m-d H:i:s')));
         self::add_roles_and_capabilities();
         return true;
     }
@@ -66,6 +72,7 @@ class EnzymesPlugin
     function on_deactivation()
     {
         self::remove_roles_and_capabilities();
+        self::$options->remove_all();
         return true;
     }
 
@@ -81,19 +88,6 @@ class EnzymesPlugin
     }
 
     //------------------------------------------------------------------------------------------------------------------
-
-
-    static protected
-    function save_activation_time()
-    {
-//        self::engine()
-    }
-
-    static protected
-    function delete_activation_time()
-    {
-
-    }
 
     static protected
     function add_roles_and_capabilities()
