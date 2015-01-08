@@ -4,20 +4,24 @@ require_once 'EnzymesSequence.php';
 
 class Enzymes3
 {
+    const PREFIX = 'enzymes.';
+
     static public
     function capabilities()
     {
+//@Formatter:off
         $result = array(
-                'enzymes.inject'                       => 'It allows a user to inject enzymes into her posts.',
-                'enzymes.use_own_attributes'           => 'It allows a user to make her enzymes with her own attributes.',
-                'enzymes.use_others_attributes'        => 'It allows a user to make her enzymes with others\' attributes.',
-                'enzymes.use_own_custom_fields'        => 'It allows a user to make her enzymes with her own custom fields.',
-                'enzymes.use_others_custom_fields'     => 'It allows a user to make her enzymes with others\' custom fields.',
-                'enzymes.create_static_custom_fields'  => 'It allows a user to create enzymes from non-evaluated custom fields.',
-                'enzymes.create_dynamic_custom_fields' => 'It allows a user to create enzymes from evaluated custom fields.',
-                'enzymes.share_static_custom_fields'   => 'It allows a user to share her enzymes from non-evaluated custom fields.',
-                'enzymes.share_dynamic_custom_fields'  => 'It allows a user to share her enzymes from evaluated custom fields.',
+                self::PREFIX . 'inject'                       => 'It allows a user to inject enzymes into her posts.',
+                self::PREFIX . 'use_own_attributes'           => 'It allows a user to make her enzymes with her own attributes.',
+                self::PREFIX . 'use_others_attributes'        => 'It allows a user to make her enzymes with others\' attributes.',
+                self::PREFIX . 'use_own_custom_fields'        => 'It allows a user to make her enzymes with her own custom fields.',
+                self::PREFIX . 'use_others_custom_fields'     => 'It allows a user to make her enzymes with others\' custom fields.',
+                self::PREFIX . 'create_static_custom_fields'  => 'It allows a user to create enzymes from non-evaluated custom fields.',
+                self::PREFIX . 'create_dynamic_custom_fields' => 'It allows a user to create enzymes from evaluated custom fields.',
+                self::PREFIX . 'share_static_custom_fields'   => 'It allows a user to share her enzymes from non-evaluated custom fields.',
+                self::PREFIX . 'share_dynamic_custom_fields'  => 'It allows a user to share her enzymes from evaluated custom fields.',
         );
+//@Formatter:on
         return $result;
     }
 
@@ -512,10 +516,10 @@ class Enzymes3
     protected
     function execute_code( $code, $arguments, $post_object )
     {
-        if ( author_can($post_object, 'enzymes.create_dynamic_custom_fields') &&
+        if ( author_can($post_object, self::PREFIX . 'create_dynamic_custom_fields') &&
              ($this->belongs_to_current_author($post_object) ||
-              author_can($post_object, 'enzymes.share_dynamic_custom_fields') &&
-              author_can($this->current_post, 'enzymes.use_others_custom_fields'))
+              author_can($post_object, self::PREFIX . 'share_dynamic_custom_fields') &&
+              author_can($this->current_post, self::PREFIX . 'use_others_custom_fields'))
         ) {
             list($result,) = $this->safe_eval($code, $arguments);
         } else {
@@ -630,16 +634,16 @@ class Enzymes3
     protected
     function transclude_code( $code, $post_object )
     {
-        if ( author_can($post_object, 'enzymes.create_dynamic_custom_fields') &&
+        if ( author_can($post_object, self::PREFIX . 'create_dynamic_custom_fields') &&
              ($this->belongs_to_current_author($post_object) ||
-              author_can($post_object, 'enzymes.share_dynamic_custom_fields') &&
-              author_can($this->current_post, 'enzymes.use_others_custom_fields'))
+              author_can($post_object, self::PREFIX . 'share_dynamic_custom_fields') &&
+              author_can($this->current_post, self::PREFIX . 'use_others_custom_fields'))
         ) {
             list(, $output) = $this->safe_eval(" ?>$code<?php ");
-        } elseif ( author_can($post_object, 'enzymes.create_static_custom_fields') &&
+        } elseif ( author_can($post_object, self::PREFIX . 'create_static_custom_fields') &&
                    ($this->belongs_to_current_author($post_object) ||
-                    author_can($post_object, 'enzymes.share_static_custom_fields') &&
-                    author_can($this->current_post, 'enzymes.use_others_custom_fields'))
+                    author_can($post_object, self::PREFIX . 'share_static_custom_fields') &&
+                    author_can($this->current_post, self::PREFIX . 'use_others_custom_fields'))
         ) {
             $output = $code;
         } else {
@@ -705,8 +709,8 @@ class Enzymes3
     {
         $this->debug_print('transcluding post_attr');
         $same_author = $this->belongs_to_current_author($post_object);
-        if ( $same_author && author_can($post_object, 'enzymes.use_own_attributes') ||
-             ! $same_author && author_can($this->current_post, 'enzymes.use_others_attributes')
+        if ( $same_author && author_can($post_object, self::PREFIX . 'use_own_attributes') ||
+             ! $same_author && author_can($this->current_post, self::PREFIX . 'use_others_attributes')
         ) {
             $expression = $this->grammar['post_attr']->wrapper_set('@@')
                                                      ->expression(true);
@@ -732,8 +736,8 @@ class Enzymes3
     {
         $this->debug_print('transcluding author_attr');
         $same_author = $this->belongs_to_current_author($post_object);
-        if ( $same_author && author_can($post_object, 'enzymes.use_own_attributes') ||
-             ! $same_author && author_can($this->current_post, 'enzymes.use_others_attributes')
+        if ( $same_author && author_can($post_object, self::PREFIX . 'use_own_attributes') ||
+             ! $same_author && author_can($this->current_post, self::PREFIX . 'use_others_attributes')
         ) {
             $expression = $this->grammar['author_attr']->wrapper_set('@@')
                                                        ->expression(true);
@@ -912,7 +916,7 @@ class Enzymes3
         if ( is_null($this->current_post) ) {
             return $content;
         }
-        if ( ! author_can($this->current_post, 'enzymes.inject') ) {
+        if ( ! author_can($this->current_post, self::PREFIX . 'inject') ) {
             return $content;
         }
         if ( ! $this->there_is_an_injection($content, $matches) ) {

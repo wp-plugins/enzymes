@@ -484,7 +484,7 @@ class Enzymes3Test
         $attrs_count = count($attrs);
 
         // This role is not really needed for attributes, but it makes my test easier to write.
-        $user = $this->factory->user->create_and_get(array('role' => 'enzymes.Coder'));
+        $user = $this->factory->user->create_and_get(array('role' => Enzymes3::PREFIX . 'Coder'));
         $data = array();
         foreach ($attrs as $key) {
             $data[$key] = $user->$key;
@@ -507,7 +507,7 @@ class Enzymes3Test
 
     function test_transcluded_author_from_current_post()
     {
-        $user_id = $this->factory->user->create(array('role' => 'enzymes.User'));
+        $user_id = $this->factory->user->create(array('role' => Enzymes3::PREFIX . 'User'));
         add_user_meta($user_id, 'sample-name', 'sample-value');
         add_user_meta($user_id, 'sample name', 'sample value');
         $post_id = $this->factory->post->create(array('post_author' => $user_id));
@@ -522,12 +522,12 @@ class Enzymes3Test
 
     function test_transcluded_author_from_another_post()
     {
-        $user_1_id = $this->factory->user->create(array('role' => 'enzymes.PrivilegedUser'));
+        $user_1_id = $this->factory->user->create(array('role' => Enzymes3::PREFIX . 'PrivilegedUser'));
         add_user_meta($user_1_id, 'sample-name', 'sample value 1');
         $post_1_id = $this->factory->post->create(array('post_author' => $user_1_id));
         $post_1 = get_post($post_1_id);
 
-        $user_2_id = $this->factory->user->create(array('role' => 'enzymes.TrustedUser'));
+        $user_2_id = $this->factory->user->create(array('role' => Enzymes3::PREFIX . 'TrustedUser'));
         add_user_meta($user_2_id, 'sample-name', 'sample value 2');
         $post_2_id = $this->factory->post->create(array('post_author' => $user_2_id));
 
@@ -540,12 +540,12 @@ class Enzymes3Test
 
     function test_transcluded_author_from_another_post_by_slug()
     {
-        $user_1_id = $this->factory->user->create(array('role' => 'enzymes.PrivilegedUser'));
+        $user_1_id = $this->factory->user->create(array('role' => Enzymes3::PREFIX . 'PrivilegedUser'));
         add_user_meta($user_1_id, 'sample-name', 'sample value 1');
         $post_1_id = $this->factory->post->create(array('post_author' => $user_1_id));
         $post_1 = get_post($post_1_id);
 
-        $user_2_id = $this->factory->user->create(array('role' => 'enzymes.TrustedUser'));
+        $user_2_id = $this->factory->user->create(array('role' => Enzymes3::PREFIX . 'TrustedUser'));
         add_user_meta($user_2_id, 'sample-name', 'sample value 2');
         $post_2_id = $this->factory->post->create(array(
                                                           'post_author' => $user_2_id,
@@ -622,7 +622,7 @@ class Enzymes3Test
 
     function test_executed_author_with_no_arguments()
     {
-        $user_id = $this->factory->user->create(array('role' => 'enzymes.Coder'));
+        $user_id = $this->factory->user->create(array('role' => Enzymes3::PREFIX . 'Coder'));
         add_user_meta($user_id, 'sample-name', '
         $a = 100;
         $b = 20;
@@ -642,7 +642,7 @@ class Enzymes3Test
 
     function test_executed_author_with_one_argument()
     {
-        $user_id = $this->factory->user->create(array('role' => 'enzymes.Coder'));
+        $user_id = $this->factory->user->create(array('role' => Enzymes3::PREFIX . 'Coder'));
         add_user_meta($user_id, 'sample-name', '
         list($a) = $arguments;
         $b = 20;
@@ -662,7 +662,7 @@ class Enzymes3Test
 
     function test_executed_author_with_many_arguments()
     {
-        $user_id = $this->factory->user->create(array('role' => 'enzymes.Coder'));
+        $user_id = $this->factory->user->create(array('role' => Enzymes3::PREFIX . 'Coder'));
         add_user_meta($user_id, 'sample-name', '
         list($a, $b, $c) = $arguments;
         $result = $a * $b - $c;
@@ -680,7 +680,7 @@ class Enzymes3Test
 
     function test_executed_author_with_an_array_argument()
     {
-        $user_id = $this->factory->user->create(array('role' => 'enzymes.Coder'));
+        $user_id = $this->factory->user->create(array('role' => Enzymes3::PREFIX . 'Coder'));
         add_user_meta($user_id, 'sample-name', '
         list($a, $bc) = $arguments;
         $result = $a * array_sum($bc);
@@ -698,7 +698,7 @@ class Enzymes3Test
 
     function test_executed_author_with_a_hash_argument()
     {
-        $user_id = $this->factory->user->create(array('role' => 'enzymes.Coder'));
+        $user_id = $this->factory->user->create(array('role' => Enzymes3::PREFIX . 'Coder'));
         add_user_meta($user_id, 'sample-name', '
         list($hash) = $arguments;
         $result = $hash["a hundred"] * array_sum($hash["twenty and three"]);

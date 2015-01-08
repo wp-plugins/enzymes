@@ -87,37 +87,37 @@ class EnzymesPlugin
         $caps = array_keys(Enzymes3::capabilities());
         $no_role_capabilities = array_fill_keys($caps, false);
 //@formatter:off
-        remove_role('enzymes.User');
+        remove_role(Enzymes3::PREFIX . 'User');
         $user_role = add_role(
-            'enzymes.User', __('Enzymes User'), array_merge($no_role_capabilities, array(
-                'enzymes.inject'                       => true,
-                'enzymes.use_own_attributes'           => true,
-                'enzymes.use_own_custom_fields'        => true,
-                'enzymes.create_static_custom_fields'  => true,
+            Enzymes3::PREFIX . 'User', __('Enzymes User'), array_merge($no_role_capabilities, array(
+                Enzymes3::PREFIX . 'inject'                       => true,
+                Enzymes3::PREFIX . 'use_own_attributes'           => true,
+                Enzymes3::PREFIX . 'use_own_custom_fields'        => true,
+                Enzymes3::PREFIX . 'create_static_custom_fields'  => true,
         )));
 
-        remove_role('enzymes.PrivilegedUser');
+        remove_role(Enzymes3::PREFIX . 'PrivilegedUser');
         $privileged_user_role = add_role(
-            'enzymes.PrivilegedUser', __('Enzymes Privileged User'), array_merge($user_role->capabilities, array(
-                'enzymes.use_others_custom_fields'     => true,
+            Enzymes3::PREFIX . 'PrivilegedUser', __('Enzymes Privileged User'), array_merge($user_role->capabilities, array(
+                Enzymes3::PREFIX . 'use_others_custom_fields'     => true,
         )));
 
-        remove_role('enzymes.TrustedUser');
+        remove_role(Enzymes3::PREFIX . 'TrustedUser');
         $trusted_user_role = add_role(
-            'enzymes.TrustedUser', __('Enzymes Trusted User'), array_merge($privileged_user_role->capabilities, array(
-                'enzymes.share_static_custom_fields'   => true,
+            Enzymes3::PREFIX . 'TrustedUser', __('Enzymes Trusted User'), array_merge($privileged_user_role->capabilities, array(
+                Enzymes3::PREFIX . 'share_static_custom_fields'   => true,
         )));
 
-        remove_role('enzymes.Coder');
+        remove_role(Enzymes3::PREFIX . 'Coder');
         $coder_role = add_role(
-            'enzymes.Coder', __('Enzymes Coder'), array_merge($trusted_user_role->capabilities, array(
-                'enzymes.create_dynamic_custom_fields' => true,
+            Enzymes3::PREFIX . 'Coder', __('Enzymes Coder'), array_merge($trusted_user_role->capabilities, array(
+                Enzymes3::PREFIX . 'create_dynamic_custom_fields' => true,
         )));
 
-        remove_role('enzymes.TrustedCoder');
+        remove_role(Enzymes3::PREFIX . 'TrustedCoder');
         $trusted_coder_role = add_role(
-            'enzymes.TrustedCoder', __('Enzymes Trusted Coder'), array_merge($coder_role->capabilities, array(
-                'enzymes.share_dynamic_custom_fields'  => true,
+            Enzymes3::PREFIX . 'TrustedCoder', __('Enzymes Trusted Coder'), array_merge($coder_role->capabilities, array(
+                Enzymes3::PREFIX . 'share_dynamic_custom_fields'  => true,
         )));
 //@formatter:on
 
@@ -135,7 +135,7 @@ class EnzymesPlugin
         /* @var $wp_roles WP_Roles */
 
         foreach ($wp_roles->roles as $name => $role) {
-            if ( 0 === strpos($name, 'enzymes.') ) {
+            if ( 0 === strpos($name, Enzymes3::PREFIX) ) {
                 remove_role($name);
             }
         }
