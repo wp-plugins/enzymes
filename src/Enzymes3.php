@@ -2,7 +2,7 @@
 require_once dirname(ENZYMES_FILENAME) . '/vendor/Ando/Regex.php';
 require_once 'EnzymesSequence.php';
 require_once 'EnzymesCapabilities.php';
-require_once 'EnzymesOption.php';
+require_once 'EnzymesOptions.php';
 
 class Enzymes3
 {
