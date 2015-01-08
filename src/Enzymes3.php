@@ -1,6 +1,6 @@
 <?php
 require_once dirname(ENZYMES_FILENAME) . '/vendor/Ando/Regex.php';
-require_once 'Sequence.php';
+require_once 'EnzymesSequence.php';
 
 class Enzymes3
 {
@@ -127,7 +127,7 @@ class Enzymes3
     /**
      * Sequence of catalyzed enzymes, which are meant to be used as arguments for other enzymes.
      *
-     * @var Sequence
+     * @var EnzymesSequence
      */
     protected $catalyzed;
 
@@ -846,7 +846,7 @@ class Enzymes3
         if ( ! $there_are_only_chained_enzymes ) {
             $result = '{[' . $could_be_sequence . ']}';  // skip this injection like if it had been escaped...
         } else {
-            $this->catalyzed = new Sequence();
+            $this->catalyzed = new EnzymesSequence();
             $rest = $sequence;
             while (preg_match($this->e_sequence_start, $rest, $matches)) {
                 $this->default_empty($matches, 'execution', 'transclusion', 'literal', 'str_literal', 'number', 'rest');
