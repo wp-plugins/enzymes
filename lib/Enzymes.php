@@ -1,6 +1,6 @@
 <?php
 
-class Enzymes2
+class Enzymes
 {
 	var $templates_path = 'wp-content/plugins/enzymes/templates/';
 	var $content   = '';  // the content of the post, modified by Enzymes
