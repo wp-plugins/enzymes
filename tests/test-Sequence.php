@@ -1,7 +1,5 @@
 <?php
 
-require_once 'lib/Sequence.php';
-
 class SequenceTest
         extends WP_UnitTestCase
 {

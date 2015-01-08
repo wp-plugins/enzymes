@@ -1,5 +1,4 @@
 <?php
-require_once 'lib/Enzymes3.php';
 
 class Enzymes3Test
         extends WP_UnitTestCase
