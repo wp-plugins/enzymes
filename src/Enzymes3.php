@@ -430,9 +430,6 @@ class Enzymes3
         if ( $string ) {
             $field = $this->unquote($field);
         }
-//        if ( ! property_exists($post_object, $field) ) {
-//            return "($field)";
-//        }
         $result = @$post_object->$field;
         return $result;
     }
@@ -855,7 +852,7 @@ class Enzymes3
     }
 
     /**
-     * Remove noise the matched sequence.
+     * Remove noise from a sequence.
      *
      * @param string $sequence
      *
@@ -878,6 +875,11 @@ class Enzymes3
         return $result;
     }
 
+    /**
+     * Detect the version of the injection post.
+     *
+     * @return int
+     */
     protected
     function default_version()
     {
@@ -896,9 +898,12 @@ class Enzymes3
     }
 
     /**
+     * Detect the version of an injection with a sequence.
+     * Remove the forced version from the sequence, if that was the case.
+     *
      * @param string $sequence
      *
-     * @return false|string
+     * @return int
      */
     protected
     function sequence_version( &$sequence )
@@ -987,6 +992,9 @@ class Enzymes3
     }
 
     /**
+     * Get the post the injection belongs to.
+     * It can be null when forced to NO_POST.
+     *
      * @param $args
      *
      * @return array
