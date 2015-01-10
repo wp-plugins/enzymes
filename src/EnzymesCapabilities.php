@@ -2,6 +2,7 @@
 
 class EnzymesCapabilities
 {
+    const PREFIX = 'enzymes.';
 
 //@formatter:off
     const inject                       = 'enzymes.inject';                        // It allows a user to inject enzymes into her posts.

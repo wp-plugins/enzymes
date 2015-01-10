@@ -119,16 +119,22 @@ class EnzymesPlugin
         /* @var $wp_roles WP_Roles */
 
         foreach ($wp_roles->roles as $name => $role) {
-            if ( 0 === strpos($name, Enzymes3::PREFIX) ) {
+            if ( 0 === strpos($name, EnzymesCapabilities::PREFIX) ) {
                 remove_role($name);
             }
         }
 
         foreach (EnzymesCapabilities::all() as $cap) {
-            if ( 0 === strpos($cap, Enzymes3::PREFIX) ) {
+            if ( 0 === strpos($cap, EnzymesCapabilities::PREFIX) ) {
                 $wp_roles->remove_cap('administrator', $cap);
             }
         }
+    }
+
+    static public
+    function activated_on() {
+        $options = self::$options->keysGet(array('activated_on'));
+        return $options['activated_on'];
     }
 
 }

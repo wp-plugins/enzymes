@@ -9,7 +9,15 @@ Author URI: http://andowebsit.es/blog/noteslog.com/
 License: GPLv2 or later
 */
 
+
 define('ENZYMES_FILENAME', __FILE__);
-require 'src/EnzymesPlugin.php';
+require_once 'src/EnzymesPlugin.php';
 
 $enzymesPlugin = new EnzymesPlugin();
+
+
+
+// ---------------------------------------------------------------------------------------------------------------------
+// The following code will allow old version 2 enzymes sequences to work exactly as they did.
+require_once 'enzymes.2/enzymes.php';
+// ---------------------------------------------------------------------------------------------------------------------

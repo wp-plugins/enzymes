@@ -167,7 +167,6 @@ class Enzymes3Test
         global $post;
 
         $target_post_id = $this->factory->post->create(array('post_title' => 'This is the target post.'));
-        $target         = get_post($target_post_id);
 
         $enzymes = new Enzymes3();
 
@@ -177,17 +176,17 @@ class Enzymes3Test
         $this->assertEquals($post->ID, $result->ID);
 
         // this must return the target post (default)
-        $enzymes->metabolize('This post has a {[ fake ]} injection.', $target);
+        $enzymes->metabolize('This post has a {[ fake ]} injection.', $target_post_id);
         $result = $this->call_method('wp_post', array(array()), $enzymes);
         $this->assertEquals($target_post_id, $result->ID);
 
         // this must return the target post (numeric)
-        $enzymes->metabolize('This post has a {[ fake ]} injection.', $target);
+        $enzymes->metabolize('This post has a {[ fake ]} injection.', $target_post_id);
         $result = $this->call_method('wp_post', array(array('post' => $post->ID)), $enzymes);
         $this->assertEquals($post->ID, $result->ID);
 
         // this must return the target post (slug)
-        $enzymes->metabolize('This post has a {[ fake ]} injection.', $target);
+        $enzymes->metabolize('This post has a {[ fake ]} injection.', $target_post_id);
         $result = $this->call_method('wp_post', array(
                 array(
                         'post' => '@this-is-the-global-post',

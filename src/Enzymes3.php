@@ -6,7 +6,24 @@ require_once 'EnzymesOptions.php';
 
 class Enzymes3
 {
-    const PREFIX = 'enzymes.';
+    /**
+     *  When calling the engine directly, for forcing the global post, use one of the following:
+     * - EnzymesPlugin::engine()->metabolize($content);
+     * - EnzymesPlugin::engine()->metabolize($content, null);
+     * - EnzymesPlugin::engine()->metabolize($content, Enzymes3::GLOBAL_POST);
+     */
+    const GLOBAL_POST = null;
+
+    /**
+     * When calling the engine directly, for forcing no post at all, use one of the following:
+     * - EnzymesPlugin::engine()->metabolize($content, Enzymes3::NO_POST);
+     */
+    const NO_POST = -1;
+
+    /**
+     * When calling the engine directly, ID of the user to consider the author after forcing no post.
+     */
+    const NO_POST_AUTHOR = 1;
 
     /**
      * @var EnzymesOptions
@@ -32,10 +49,11 @@ class Enzymes3
 
     /**
      * The post which the content belongs to.
+     * It can be null if the developer forced no post with ->metabolize($content, Enzymes3::NO_POST).
      *
      * @var WP_Post
      */
-    protected $current_post;
+    protected $injection_post;
 
     /**
      * The content of the post, modified by Enzymes.
@@ -186,9 +204,9 @@ class Enzymes3
                 'sequence'     => '(?<sequence>$enzyme(\|$enzyme)*)',
                 'injection'    => '(?<injection>{[$sequence]})',
         );
-        $result = array();
+        $result  = array();
         foreach ($grammar as $symbol => $rule) {
-            $regex = new Ando_Regex($rule);
+            $regex           = new Ando_Regex($rule);
             $result[$symbol] = $regex->interpolate($result);
         }
         $this->grammar = $result;
@@ -200,15 +218,15 @@ class Enzymes3
     protected
     function init_e_injection()
     {
-        $before = new Ando_Regex('(?<before>.*?)');
+        $before             = new Ando_Regex('(?<before>.*?)');
         $could_be_injection = new Ando_Regex('\{\[(?<could_be_sequence>.*?)\]\}');
-        $after = new Ando_Regex('(?<after>.*)');
-        $content = new Ando_Regex('^$before$could_be_injection$after$', '@@s');
+        $after              = new Ando_Regex('(?<after>.*)');
+        $content            = new Ando_Regex('^$before$could_be_injection$after$', '@@s');
         $content->interpolate(array(
-                                      'before'             => $before,
-                                      'could_be_injection' => $could_be_injection,
-                                      'after'              => $after,
-                              ));
+                'before'             => $before,
+                'could_be_injection' => $could_be_injection,
+                'after'              => $after,
+        ));
         $this->e_injection = $content;
     }
 
@@ -221,8 +239,8 @@ class Enzymes3
         // Notice that sequence_valid matches all the enzymes of the sequence at once.
         $sequence_valid = new Ando_Regex(Ando_Regex::option_same_name() . '^(?:\|$enzyme)+$', '@@');
         $sequence_valid->interpolate(array(
-                                             'enzyme' => $this->grammar['enzyme'],
-                                     ));
+                'enzyme' => $this->grammar['enzyme'],
+        ));
         $this->e_sequence_valid = $sequence_valid;
     }
 
@@ -232,12 +250,12 @@ class Enzymes3
     protected
     function init_e_sequence_start()
     {
-        $rest = new Ando_Regex('(?:\|(?<rest>.+))');
+        $rest           = new Ando_Regex('(?:\|(?<rest>.+))');
         $sequence_start = new Ando_Regex(Ando_Regex::option_same_name() . '^$enzyme$rest?$', '@@');
         $sequence_start->interpolate(array(
-                                             'enzyme' => $this->grammar['enzyme'],
-                                             'rest'   => $rest,
-                                     ));
+                'enzyme' => $this->grammar['enzyme'],
+                'rest'   => $rest,
+        ));
         $this->e_sequence_start = $sequence_start;
     }
 
@@ -249,8 +267,8 @@ class Enzymes3
     {
         $maybe_quoted = new Ando_Regex('(?<before_string>.*?)$string|(?<anything_else>.+)', '@@s');
         $maybe_quoted->interpolate(array(
-                                           'string' => $this->grammar['string'],
-                                   ));
+                'string' => $this->grammar['string'],
+        ));
         $this->e_string = $maybe_quoted;
     }
 
@@ -267,10 +285,10 @@ class Enzymes3
 
         $this->e_comment = new Ando_Regex('\/\*.*?\*\/', '@@s');
         // for some reason WP introduces some C2 (hex) chars when writing a post...
-        $this->e_unbreakable_space = new Ando_Regex('\xC2\xA0', '@@');
-        $this->e_all_spaces = new Ando_Regex('(?:\s|\xC2\xA0)+', '@@');
+        $this->e_unbreakable_space           = new Ando_Regex('\xC2\xA0', '@@');
+        $this->e_all_spaces                  = new Ando_Regex('(?:\s|\xC2\xA0)+', '@@');
         $this->e_escaped_injection_delimiter = new Ando_Regex('\\\\([{[\]}])', '@@');
-        $this->e_escaped_string_delimiter = new Ando_Regex('\\\\=', '@@');
+        $this->e_escaped_string_delimiter    = new Ando_Regex('\\\\=', '@@');
     }
 
     public
@@ -278,7 +296,7 @@ class Enzymes3
     {
         $this->init_grammar();
         $this->init_expressions();
-        $this->options = new EnzymesOptions(self::PREFIX);
+        $this->options = new EnzymesOptions();
     }
 
     /**
@@ -292,7 +310,7 @@ class Enzymes3
         $keys = func_get_args();
         array_shift($keys);
         $default = array_fill_keys($keys, '');
-        $hash = array_merge($default, $hash);
+        $hash    = array_merge($default, $hash);
     }
 
     /**
@@ -333,10 +351,14 @@ class Enzymes3
         /* @var $slug string */
         switch (true) {
             case ($post == ''):
-                $result = $this->current_post;
+                $result = $this->injection_post;
                 break;
             case ($post[0] == '@'):
-                $result = get_page_by_path($slug, OBJECT, 'post');
+                // We can't use the following API call because we want all post types.
+                //$result = get_page_by_path($slug, OBJECT, 'post');
+                global $wpdb;
+                $post_id = $wpdb->get_var("SELECT `ID` FROM $wpdb->posts WHERE `post_name` = '$slug' LIMIT 1");
+                $result  = get_post($post_id);
                 break;
             case (is_numeric($post)):
                 $result = get_post($post);
@@ -474,8 +496,26 @@ class Enzymes3
     protected
     function wp_author( $post_object )
     {
-        $id = $post_object->post_author;
+        $id     = $post_object->post_author;
         $result = get_user_by('id', $id);
+        return $result;
+    }
+
+    /**
+     * True if the current post's author can exercise the capability.
+     *
+     * @param string $capability
+     *
+     * @return bool
+     */
+    protected
+    function injection_author_can( $capability )
+    {
+        if ( is_null($this->injection_post) ) {
+            $result = user_can(self::NO_POST_AUTHOR, $capability);
+        } else {
+            $result = author_can($this->injection_post, $capability);
+        }
         return $result;
     }
 
@@ -487,9 +527,13 @@ class Enzymes3
      * @return bool
      */
     protected
-    function belongs_to_current_author( $post_object )
+    function injection_author_owns( $post_object )
     {
-        $result = $this->current_post->post_author == $post_object->post_author;
+        if ( is_null($this->injection_post) ) {
+            $result = self::NO_POST_AUTHOR == $post_object->post_author;
+        } else {
+            $result = $this->injection_post->post_author == $post_object->post_author;
+        }
         return $result;
     }
 
@@ -506,9 +550,9 @@ class Enzymes3
     function execute_code( $code, $arguments, $post_object )
     {
         if ( author_can($post_object, EnzymesCapabilities::create_dynamic_custom_fields) &&
-             ($this->belongs_to_current_author($post_object) ||
+             ($this->injection_author_owns($post_object) ||
               author_can($post_object, EnzymesCapabilities::share_dynamic_custom_fields) &&
-              author_can($this->current_post, EnzymesCapabilities::use_others_custom_fields))
+              $this->injection_author_can(EnzymesCapabilities::use_others_custom_fields))
         ) {
             list($result,) = $this->safe_eval($code, $arguments);
         } else {
@@ -535,11 +579,14 @@ class Enzymes3
                                                  ->expression(true);
         preg_match($expression, $post_item, $matches);
         $post_object = $this->wp_post($matches);
-        $code = $this->wp_post_field($post_object, $matches);
+        if ( ! $post_object instanceof WP_Post ) {
+            return null;
+        }
+        $code      = $this->wp_post_field($post_object, $matches);
         $arguments = $num_args > 0
                 ? $this->catalyzed->pop($num_args)
                 : array();
-        $result = $this->execute_code($code, $arguments, $post_object);
+        $result    = $this->execute_code($code, $arguments, $post_object);
         return $result;
     }
 
@@ -560,12 +607,15 @@ class Enzymes3
                                                    ->expression(true);
         preg_match($expression, $author_item, $matches);
         $post_object = $this->wp_post($matches);
+        if ( ! $post_object instanceof WP_Post ) {
+            return null;
+        }
         $user_object = $this->wp_author($post_object);
-        $code = $this->wp_user_field($user_object, $matches);
-        $arguments = $num_args > 0
+        $code        = $this->wp_user_field($user_object, $matches);
+        $arguments   = $num_args > 0
                 ? $this->catalyzed->pop($num_args)
                 : array();
-        $result = $this->execute_code($code, $arguments, $post_object);
+        $result      = $this->execute_code($code, $arguments, $post_object);
         return $result;
     }
 
@@ -591,11 +641,11 @@ class Enzymes3
                 $result = $this->catalyzed->pop($num_args);
                 break;
             case (strpos($execution, 'hash(') === 0 && $num_args > 0):
-                $result = array();
+                $result    = array();
                 $arguments = $this->catalyzed->pop(2 * $num_args);
                 for ($i = 0, $i_top = 2 * $num_args; $i < $i_top; $i += 2) {
-                    $key = $arguments[$i];
-                    $value = $arguments[$i + 1];
+                    $key          = $arguments[$i];
+                    $value        = $arguments[$i + 1];
                     $result[$key] = $value;
                 }
                 break;
@@ -624,15 +674,15 @@ class Enzymes3
     function transclude_code( $code, $post_object )
     {
         if ( author_can($post_object, EnzymesCapabilities::create_dynamic_custom_fields) &&
-             ($this->belongs_to_current_author($post_object) ||
+             ($this->injection_author_owns($post_object) ||
               author_can($post_object, EnzymesCapabilities::share_dynamic_custom_fields) &&
-              author_can($this->current_post, EnzymesCapabilities::use_others_custom_fields))
+              $this->injection_author_can(EnzymesCapabilities::use_others_custom_fields))
         ) {
             list(, $output) = $this->safe_eval(" ?>$code<?php ");
         } elseif ( author_can($post_object, EnzymesCapabilities::create_static_custom_fields) &&
-                   ($this->belongs_to_current_author($post_object) ||
+                   ($this->injection_author_owns($post_object) ||
                     author_can($post_object, EnzymesCapabilities::share_static_custom_fields) &&
-                    author_can($this->current_post, EnzymesCapabilities::use_others_custom_fields))
+                    $this->injection_author_can(EnzymesCapabilities::use_others_custom_fields))
         ) {
             $output = $code;
         } else {
@@ -657,7 +707,7 @@ class Enzymes3
         $expression = $this->grammar['post_item']->wrapper_set('@@')
                                                  ->expression(true);
         preg_match($expression, $post_item, $matches);
-        $code = $this->wp_post_field($post_object, $matches);
+        $code   = $this->wp_post_field($post_object, $matches);
         $output = $this->transclude_code($code, $post_object);
         return $output;
     }
@@ -679,8 +729,8 @@ class Enzymes3
                                                    ->expression(true);
         preg_match($expression, $author_item, $matches);
         $user_object = $this->wp_author($post_object);
-        $code = $this->wp_user_field($user_object, $matches);
-        $output = $this->transclude_code($code, $post_object);
+        $code        = $this->wp_user_field($user_object, $matches);
+        $output      = $this->transclude_code($code, $post_object);
         return $output;
     }
 
@@ -697,9 +747,10 @@ class Enzymes3
     function transclude_post_attr( $post_attr, $post_object )
     {
         $this->debug_print('transcluding post_attr');
-        $same_author = $this->belongs_to_current_author($post_object);
+        $same_author = $this->injection_author_owns($post_object);
         if ( $same_author && author_can($post_object, EnzymesCapabilities::use_own_attributes) ||
-             ! $same_author && author_can($this->current_post, EnzymesCapabilities::use_others_attributes)
+             ! $same_author &&
+             $this->injection_author_can(EnzymesCapabilities::use_others_attributes)
         ) {
             $expression = $this->grammar['post_attr']->wrapper_set('@@')
                                                      ->expression(true);
@@ -724,15 +775,16 @@ class Enzymes3
     function transclude_author_attr( $author_attr, $post_object )
     {
         $this->debug_print('transcluding author_attr');
-        $same_author = $this->belongs_to_current_author($post_object);
+        $same_author = $this->injection_author_owns($post_object);
         if ( $same_author && author_can($post_object, EnzymesCapabilities::use_own_attributes) ||
-             ! $same_author && author_can($this->current_post, EnzymesCapabilities::use_others_attributes)
+             ! $same_author &&
+             $this->injection_author_can(EnzymesCapabilities::use_others_attributes)
         ) {
             $expression = $this->grammar['author_attr']->wrapper_set('@@')
                                                        ->expression(true);
             preg_match($expression, $author_attr, $matches);
             $user_object = $this->wp_author($post_object);
-            $result = $this->wp_user_attribute($user_object, $matches);
+            $result      = $this->wp_user_attribute($user_object, $matches);
         } else {
             $result = null;
         }
@@ -756,6 +808,9 @@ class Enzymes3
         /* @var $author_item string */
         /* @var $author_attr string */
         $post_object = $this->wp_post($matches);
+        if ( ! $post_object instanceof WP_Post ) {
+            return null;
+        }
         switch (true) {
             case ($post_item != ''):
                 $output = $this->transclude_post_item($post_item, $post_object);
@@ -794,8 +849,8 @@ class Enzymes3
         $outside = $string
                 ? $before_string
                 : $anything_else;
-        $result = preg_replace($this->e_all_spaces, '', $outside) .
-                  preg_replace($this->e_unbreakable_space, ' ', $string);  // normal spaces are meaningful in $string
+        $result  = preg_replace($this->e_all_spaces, '', $outside) .
+                   preg_replace($this->e_unbreakable_space, ' ', $string);  // normal spaces are meaningful in $string
         return $result;
     }
 
@@ -823,6 +878,47 @@ class Enzymes3
         return $result;
     }
 
+    protected
+    function default_version()
+    {
+        // The injection_post at this point of the execution can be null only in version 3 because
+        // in version 2 it follows a different path, i.e. it would go straight into the Enzymes class
+        // by means of a call to the global metabolize() function. --
+        if ( is_null($this->injection_post) ) {
+            return 3;
+        }
+        // By looking at these dates we can only assume a default version, because another one
+        // could have been forced by the user right into an injection. --
+        $result = $this->injection_post->post_modified_gmt <= EnzymesPlugin::activated_on()
+                ? 2
+                : 3;
+        return $result;
+    }
+
+    /**
+     * @param string $sequence
+     *
+     * @return false|string
+     */
+    protected
+    function sequence_version( &$sequence )
+    {
+        $result          = $this->default_version();
+        $forced_2_prefix = '=enzymes.2=|';
+        $forced_3_prefix = '=enzymes.3=|';
+        switch (true) {
+            case (0 === strpos($sequence, $forced_2_prefix)):
+                $sequence = substr($sequence, strlen($forced_2_prefix));
+                $result   = 2;
+                break;
+            case (0 === strpos($sequence, $forced_3_prefix)):
+                $sequence = substr($sequence, strlen($forced_3_prefix));
+                $result   = 3;
+                break;
+        }
+        return $result;
+    }
+
     /**
      * Process the enzymes in the matched sequence.
      *
@@ -833,14 +929,16 @@ class Enzymes3
     protected
     function process( $could_be_sequence )
     {
-        $sequence = $this->clean_up($could_be_sequence);
+        $sequence                       = $this->clean_up($could_be_sequence);
         $there_are_only_chained_enzymes = preg_match($this->e_sequence_valid, '|' . $sequence);
-//        $this->debug_print($this->e_sequence_valid . '');
         if ( ! $there_are_only_chained_enzymes ) {
-            $result = '{[' . $could_be_sequence . ']}';  // skip this injection like if it had been escaped...
+            $result = '{[' . $could_be_sequence . ']}';  // skip this injection AS IS
+        } elseif ( $this->sequence_version($sequence) == 2 ) {
+            $result = '{[' . $sequence . ']}';           // skip this injection
+            // after stripping out the forced version from $sequence, it any
         } else {
             $this->catalyzed = new EnzymesSequence();
-            $rest = $sequence;
+            $rest            = $sequence;
             while (preg_match($this->e_sequence_start, $rest, $matches)) {
                 $this->default_empty($matches, 'execution', 'transclusion', 'literal', 'str_literal', 'number', 'rest');
                 extract($matches);
@@ -889,23 +987,47 @@ class Enzymes3
     }
 
     /**
+     * @param $args
+     *
+     * @return array
+     */
+    protected
+    function get_injection_post( $args )
+    {
+        list(, $post) = array_pad($args, 2, null);
+        if ( $post instanceof WP_Post ) {
+            return array(true, $post);
+        }
+        if ( $post == self::NO_POST ) {
+            return array(true, null);
+        }
+        // Some filters of ours do not pass the 2nd argument, while others pass a post ID, but
+        // 'wp_title' pass a string separator, so we fix this occurrence.
+        $post_id = current_filter() == 'wp_title' ? null : $post;
+        $post = get_post($post_id);
+        if ( is_null($post) ) {
+            // Consider this an error, because the developer didn't force no post.
+            return array(false, null);
+        }
+        return array(true, $post);
+    }
+
+    /**
      * Process the injected sequences in the content we are filtering.
      *
-     * @param string       $content
-     * @param null|WP_Post $default_post
+     * @param string $content
      *
      * @return array|null|string
      */
     public
-    function metabolize( $content, $default_post = null )
+    function metabolize( $content )
     {
-        $this->current_post = is_object($default_post)
-                ? $default_post
-                : get_post();
-        if ( is_null($this->current_post) ) {
+        $args = func_get_args();
+        list($continue, $this->injection_post) = $this->get_injection_post($args);
+        if ( ! $continue ) {
             return $content;
         }
-        if ( ! author_can($this->current_post, EnzymesCapabilities::inject) ) {
+        if ( ! $this->injection_author_can(EnzymesCapabilities::inject) ) {
             return $content;
         }
         if ( ! $this->there_is_an_injection($content, $matches) ) {

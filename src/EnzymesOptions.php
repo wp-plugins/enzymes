@@ -2,19 +2,7 @@
 
 class EnzymesOptions
 {
-    /**
-     * @var string
-     */
-    protected $prefix;
-
-    /**
-     * @param string $prefix
-     */
-    public
-    function __construct( $prefix = null )
-    {
-        $this->prefix = $prefix;
-    }
+    const PREFIX = 'Enzymes3.';
 
     /**
      * Returns the site/user option name.
@@ -26,7 +14,7 @@ class EnzymesOptions
     protected
     function name( $username = null )
     {
-        $result = $this->prefix . ($username
+        $result = self::PREFIX . ($username
                         ? $username
                         : 'global_options');
         return $result;
@@ -55,7 +43,8 @@ class EnzymesOptions
     function remove_all()
     {
         global $wpdb;
-        $wpdb->query("DELETE FROM `$wpdb->options` WHERE `option_name` LIKE '{$this->prefix}%'");
+        $prefix = self::PREFIX;
+        $wpdb->query("DELETE FROM `$wpdb->options` WHERE `option_name` LIKE '{$prefix}%'");
     }
 
     /**
