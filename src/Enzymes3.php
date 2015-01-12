@@ -299,6 +299,17 @@ class Enzymes3
         $this->options = new EnzymesOptions();
     }
 
+    protected
+    function get_rule_regex( $rule, $same_name = true )
+    {
+        $result = $this->grammar[$rule]->wrapper_set('@@')
+                                       ->expression(true);
+        if ( $same_name ) {
+            $result = substr_replace($result, Ando_Regex::option_same_name(), 1, 0);
+        }
+        return $result;
+    }
+
     /**
      * Set to the empty string all keys passed as additional arguments.
      *
@@ -329,10 +340,10 @@ class Enzymes3
     function safe_eval( $code, array $arguments = array() )
     {
         ob_start();
-        $result = eval($code);
-        $output = ob_get_contents();
-        ob_end_clean();
-        return array($result, $output);
+        $result = @eval($code);
+        $error  = error_get_last();
+        $output = ob_get_clean();
+        return array($result, $output, $error);
     }
 
     /**
@@ -534,6 +545,22 @@ class Enzymes3
         return $result;
     }
 
+    protected
+    function console_log( $data )
+    {
+        $json   = json_encode($data);
+        $output = <<<SCRIPT
+\n<script>
+    (function( data ) {
+        console = window.console || {};
+        console.log = console.log || function(data){};
+        console.log(data);
+    })( $json );
+</script>
+SCRIPT;
+        echo $output;
+    }
+
     /**
      * Execute code according to authors capabilities.
      *
@@ -551,7 +578,11 @@ class Enzymes3
               author_can($post_object, EnzymesCapabilities::share_dynamic_custom_fields) &&
               $this->injection_author_can(EnzymesCapabilities::use_others_custom_fields))
         ) {
-            list($result,) = $this->safe_eval($code, $arguments);
+            list($result, , $error) = $this->safe_eval($code, $arguments);
+            if ( ! empty($error) ) {
+                $result = null;
+                $this->console_log($error);
+            }
         } else {
             $result = null;
         }
@@ -619,16 +650,16 @@ class Enzymes3
     /**
      * Execute the matched enzyme.
      *
-     * @param array $matches
+     * @param string $execution
      *
      * @return array|null
      */
     protected
-    function do_execution( array $matches )
+    function do_execution( $execution )
     {
+        preg_match($this->get_rule_regex('execution'), $execution, $matches);
         $this->default_empty($matches, 'execution', 'post_item', 'author_item', 'num_args');
         extract($matches);
-        /* @var $execution string */
         /* @var $post_item string */
         /* @var $author_item string */
         /* @var $num_args string */
@@ -791,13 +822,14 @@ class Enzymes3
     /**
      * Transclude the matched enzyme.
      *
-     * @param array $matches
+     * @param string $transclusion
      *
      * @return null|string
      */
     protected
-    function do_transclusion( array $matches )
+    function do_transclusion( $transclusion )
     {
+        preg_match($this->get_rule_regex('transclusion'), $transclusion, $matches);
         $this->default_empty($matches, 'post_item', 'post_attr', 'author_item', 'author_attr');
         extract($matches);
         /* @var $post_item string */
@@ -891,7 +923,7 @@ class Enzymes3
         }
         // By looking at these dates we can only assume a default version, because another one
         // could have been forced by the user right into an injection. --
-        $result = $this->injection_post->post_modified_gmt <= EnzymesPlugin::activated_on()
+        $result = $this->injection_post->post_date_gmt <= EnzymesPlugin::activated_on()
                 ? 2
                 : 3;
         return $result;
@@ -909,8 +941,8 @@ class Enzymes3
     function sequence_version( &$sequence )
     {
         $result          = $this->default_version();
-        $forced_2_prefix = '=enzymes.2=|';
-        $forced_3_prefix = '=enzymes.3=|';
+        $forced_2_prefix = '=enzymes 2=|';
+        $forced_3_prefix = '=enzymes 3=|';
         switch (true) {
             case (0 === strpos($sequence, $forced_2_prefix)):
                 $sequence = substr($sequence, strlen($forced_2_prefix));
@@ -955,10 +987,10 @@ class Enzymes3
                 /* @var $rest string */
                 switch (true) {
                     case $execution != '':
-                        $argument = $this->do_execution($matches);
+                        $argument = $this->do_execution($execution);
                         break;
                     case $transclusion != '':
-                        $argument = $this->do_transclusion($matches);
+                        $argument = $this->do_transclusion($transclusion);
                         break;
                     case $literal != '':
                         $argument = $str_literal
@@ -1011,8 +1043,10 @@ class Enzymes3
         }
         // Some filters of ours do not pass the 2nd argument, while others pass a post ID, but
         // 'wp_title' pass a string separator, so we fix this occurrence.
-        $post_id = current_filter() == 'wp_title' ? null : $post;
-        $post = get_post($post_id);
+        $post_id = current_filter() == 'wp_title'
+                ? null
+                : $post;
+        $post    = get_post($post_id);
         if ( is_null($post) ) {
             // Consider this an error, because the developer didn't force no post.
             return array(false, null);
