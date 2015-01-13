@@ -112,9 +112,9 @@ class Enzymes
 
     function do_inclusion()
     {
-        if( '' != $this->matches['template'] )
+        if( '' != @$this->matches['template'] )
         {
-            $file_path = ABSPATH . $this->templates_path . $this->matches['template'];
+            $file_path = ABSPATH . $this->templates_path . @$this->matches['template'];
             if( file_exists( $file_path ) )
             {
                 ob_start();
@@ -138,9 +138,9 @@ class Enzymes
 
     function build_pathway()
     {
-        if( '' != $this->matches['template'] )
+        if( '' != @$this->matches['template'] )
         {
-            if( '/' == $this->matches['tempType'] )
+            if( '/' == @$this->matches['tempType'] )
             {
                 // slash template
                 $this->apply_merging();
@@ -333,22 +333,22 @@ class Enzymes
     function catalyze( $matches )
     {
         $this->matches = $matches;
-        if( '' == $matches['sub_block'] )
+        if( '' == @$matches['sub_block'] )
         {
             // transclusion
             $this->substrate = '';
-            $this->enzyme = '' == $matches['value']
-                    ? $this->item( $matches['id'], $matches['glue'], $matches['key'] )
+            $this->enzyme = '' == @$matches['value']
+                    ? $this->item( @$matches['id'], @$matches['glue'], @$matches['key'] )
                     : $this->unquote( $matches['value'] );
             $this->merging = 'append';
             $this->build_pathway();
         }
         else {
             // execution
-            $this->substrate = '' == $matches['sub_value']
-                    ? $this->item( $matches['sub_id'], $matches['sub_glue'], $matches['sub_key'] )
+            $this->substrate = '' == @$matches['sub_value']
+                    ? $this->item( @$matches['sub_id'], @$matches['sub_glue'], @$matches['sub_key'] )
                     : $this->unquote( $matches['sub_value'] );
-            $this->enzyme = $this->item( $matches['id'], $matches['glue'], $matches['key'] );
+            $this->enzyme = $this->item( @$matches['id'], @$matches['glue'], @$matches['key'] );
             $this->merging = '';
             $this->do_evaluation();
             $this->build_pathway();
@@ -357,7 +357,7 @@ class Enzymes
 
     function cb_strip_blanks( $matches )
     {
-        list( $all, $before, $quoted, $after ) = $matches;
+        @list( $all, $before, $quoted, $after ) = $matches;
         $outside = $quoted ? $before : $after;
         //for some reason IE introduces C2 (hex) chars when writing a post
         $clean = preg_replace( '/(?:\s|\xc2)+/', '', $outside ) . $quoted;
@@ -401,7 +401,7 @@ class Enzymes
                 { // process statement
                     $this->pathway = '';
                     $matchesIn['rest'] = $sttmnt;
-                    while( preg_match( '/'.$this->e['pathway1'].'/', $matchesIn['rest'], $matchesIn ) )
+                    while( preg_match( '/'.$this->e['pathway1'].'/', @$matchesIn['rest'], $matchesIn ) )
                     {
                         $this->catalyze( $matchesIn );
                     }
@@ -422,12 +422,12 @@ $enzymes = new Enzymes();
 function enzymes2_on_init()
 {
     global $enzymes;
-    add_filter('wp_title', array($enzymes, 'metabolism'), 10, 2);
-    add_filter('the_title', array($enzymes, 'metabolism'), 10, 2);
-    add_filter('the_title_rss', array($enzymes, 'metabolism'), 10, 2);
-    add_filter('the_excerpt', array($enzymes, 'metabolism'), 10, 2);
-    add_filter('the_excerpt_rss', array($enzymes, 'metabolism'), 10, 2);
-    add_filter('the_content', array($enzymes, 'metabolism'), 10, 2);
+    add_filter('wp_title', array($enzymes, 'metabolism'), 20, 2);
+    add_filter('the_title', array($enzymes, 'metabolism'), 20, 2);
+    add_filter('the_title_rss', array($enzymes, 'metabolism'), 20, 2);
+    add_filter('the_excerpt', array($enzymes, 'metabolism'), 20, 2);
+    add_filter('the_excerpt_rss', array($enzymes, 'metabolism'), 20, 2);
+    add_filter('the_content', array($enzymes, 'metabolism'), 20, 2);
 }
 add_action('init', 'enzymes2_on_init', 10, 2);
 
