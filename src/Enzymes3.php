@@ -300,7 +300,7 @@ class Enzymes3
     }
 
     protected
-    function get_rule_regex( $rule, $same_name = true )
+    function grammar_rule( $rule, $same_name = true )
     {
         $result = $this->grammar[$rule]->wrapper_set('@@')
                                        ->expression(true);
@@ -657,8 +657,8 @@ SCRIPT;
     protected
     function do_execution( $execution )
     {
-        preg_match($this->get_rule_regex('execution'), $execution, $matches);
-        $this->default_empty($matches, 'execution', 'post_item', 'author_item', 'num_args');
+        preg_match($this->grammar_rule('execution'), $execution, $matches);
+        $this->default_empty($matches, 'post_item', 'author_item', 'num_args');
         extract($matches);
         /* @var $post_item string */
         /* @var $author_item string */
@@ -701,16 +701,10 @@ SCRIPT;
     protected
     function transclude_code( $code, $post_object )
     {
-        if ( author_can($post_object, EnzymesCapabilities::create_dynamic_custom_fields) &&
+        if ( author_can($post_object, EnzymesCapabilities::create_static_custom_fields) &&
              ($this->injection_author_owns($post_object) ||
-              author_can($post_object, EnzymesCapabilities::share_dynamic_custom_fields) &&
+              author_can($post_object, EnzymesCapabilities::share_static_custom_fields) &&
               $this->injection_author_can(EnzymesCapabilities::use_others_custom_fields))
-        ) {
-            list(, $output) = $this->safe_eval(" ?>$code<?php ");
-        } elseif ( author_can($post_object, EnzymesCapabilities::create_static_custom_fields) &&
-                   ($this->injection_author_owns($post_object) ||
-                    author_can($post_object, EnzymesCapabilities::share_static_custom_fields) &&
-                    $this->injection_author_can(EnzymesCapabilities::use_others_custom_fields))
         ) {
             $output = $code;
         } else {
@@ -829,7 +823,7 @@ SCRIPT;
     protected
     function do_transclusion( $transclusion )
     {
-        preg_match($this->get_rule_regex('transclusion'), $transclusion, $matches);
+        preg_match($this->grammar_rule('transclusion'), $transclusion, $matches);
         $this->default_empty($matches, 'post_item', 'post_attr', 'author_item', 'author_attr');
         extract($matches);
         /* @var $post_item string */
