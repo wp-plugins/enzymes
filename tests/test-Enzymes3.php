@@ -124,42 +124,30 @@ class Enzymes3Test
         $this->assertEquals($content2, $mock->metabolize($content1));
     }
 
-    function test_default_empty()
+    function test_safe_eval_no_error()
     {
-        // case when the initial array is not empty
-        $values = array(
-                'one'   => 1,
-                'three' => 3,
-        );
-        $this->call_method('default_empty', array(&$values, 'one', 'two'));
-
-        $this->assertArrayHasKey('one', $values);
-        $this->assertEquals(1, $values['one']);
-
-        $this->assertArrayHasKey('two', $values);
-        $this->assertEquals('', $values['two']);
-
-        $this->assertArrayHasKey('three', $values);
-        $this->assertEquals(3, $values['three']);
-
-        // case when the initial array is empty
-        $values = array();
-        $this->call_method('default_empty', array(&$values, 'one', 'two'));
-
-        $this->assertArrayHasKey('one', $values);
-        $this->assertEquals('', $values['one']);
-
-        $this->assertArrayHasKey('two', $values);
-        $this->assertEquals('', $values['two']);
+        $code = 'list($name) = $arguments;
+        echo $name;
+        return $name;';
+        $name = 'Andrea';
+        list($result, $error) = $this->call_method('safe_eval', array($code, array($name)));
+        $this->assertNull($error);
+        $this->assertEquals($name, $result);
+        $this->expectOutputString('');
     }
 
-    function test_safe_eval()
+    function test_safe_eval_error()
     {
-        $code = 'list($name) = $arguments; echo $name; return "done";';
+        $code = 'list($name) = $arguments;
+        echo name;  // notice the error here
+        return $name;';
         $name = 'Andrea';
-        list($result, $output) = $this->call_method('safe_eval', array($code, array($name)));
-        $this->assertEquals('done', $result);
-        $this->assertEquals('Andrea', $output);
+        list($result, $error) = $this->call_method('safe_eval', array($code, array($name)));
+        $this->assertArrayHasKey('message', $error);
+        $message = "Use of undefined constant name - assumed 'name'";
+        $this->assertEquals($message, $error['message']);
+        $this->assertEquals($name, $result);
+        $this->expectOutputString('');
     }
 
     function test_wp_post()
