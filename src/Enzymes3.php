@@ -31,21 +31,18 @@ class Enzymes3
     protected $options;
 
     /**
-     * @var bool
+     * Current sequence.
+     *
+     * @var string
      */
-    public $debug_on = false;
+    protected $current_sequence;
 
     /**
-     * @param mixed $something
+     * Current enzyme.
+     *
+     * @var string
      */
-    public
-    function debug_print( $something )
-    {
-        if ( ! $this->debug_on ) {
-            return;
-        }
-        fwrite(STDERR, "\n" . print_r($something, true) . "\n");
-    }
+    protected $current_enzyme;
 
     /**
      * The post which the content belongs to.
@@ -307,7 +304,7 @@ class Enzymes3
      * Convert a grammar rule to a usable regex.
      *
      * @param string $rule
-     * @param bool $same_name
+     * @param bool   $same_name
      *
      * @return string
      * @throws Ando_Exception
@@ -326,21 +323,15 @@ class Enzymes3
     /**
      * Echo a script HTML tag to write data to the javascript console of the browser.
      *
-     * @param $data
+     * @param mixed $data
      */
     protected
     function console_log( $data )
     {
-        $json   = json_encode($data);
-        $output = <<<SCRIPT
-\n<script>
-    (function( data ) {
-        console = window.console || {};
-        console.log = console.log || function(data){};
-        console.log(data);
-    })( $json );
-</script>
-SCRIPT;
+        $json   = json_encode((is_array($data) || is_object($data))
+                ? $data
+                : trim($data));
+        $output = "<script>if(window.console){if(window.console.log){window.console.log($json);}}</script>";
         echo $output;
     }
 
@@ -358,7 +349,34 @@ SCRIPT;
     function set_last_eval_error( $type, $message, $file, $line )
     {
         $this->last_eval_error = array('type' => $type, 'message' => $message, 'file' => $file, 'line' => $line);
-        return false;
+        return true;
+    }
+
+    /**
+     * Check the syntax of a code snippet.
+     *
+     * @param $code
+     *
+     * @return mixed|null|string
+     */
+    protected
+    function php_lint( $code )
+    {
+        $result = null;
+        if ( ! function_exists('shell_exec') ) {
+            return $result;
+        }
+        $temp     = tmpfile();
+        $meta     = stream_get_meta_data($temp);
+        $filename = $meta['uri'];
+        fwrite($temp, "<?php $code");
+        $result = shell_exec("php -n -l $filename");  // -n = no ini, -l = only lint
+        fclose($temp);
+
+        $result = trim($result);
+        $result = str_replace($filename, 'enzyme code', $result);
+        $result = str_replace("\nErrors parsing enzyme code", '', $result);
+        return $result;
     }
 
     /**
@@ -376,16 +394,37 @@ SCRIPT;
     protected
     function safe_eval( $code, array $arguments = array() )
     {
-        $this->last_eval_error = null;
-        $previous_scream       = ini_set('scream.enabled', false);
+        $error        = $output = $exception = null;
+        $previous_ini = array();
+
+        $previous_ini['scream.enabled'] = ini_set('scream.enabled', false);
         set_error_handler(array($this, 'set_last_eval_error'), E_ALL);
         ob_start();
-        $result = @eval($code);
-        ob_end_clean();
+        try {
+            $this->last_eval_error = null;
+            // ---------------------------------------------------------------------------------------------------------
+            $result = @eval($code);
+            // ---------------------------------------------------------------------------------------------------------
+            $error                 = $this->last_eval_error;
+            $this->last_eval_error = null;
+        } catch ( Exception $e ) {
+            $result    = false;  // Let's force the same error treatment
+            $exception = $e;     // but remember the exception now.
+        }
+        $output = ob_get_clean();
         restore_error_handler();
-        ini_set('scream.enabled', $previous_scream);
-        list($error, $this->last_eval_error) = array($this->last_eval_error, null);
-        return array($result, $error);
+        ini_set('scream.enabled', $previous_ini['scream.enabled']);
+
+        if ( false === $result ) {
+            if ( null === $error && null === $exception ) {
+                $error = $this->php_lint($code);
+            }
+            if ( null === $error ) {
+                $error = $exception;
+            }
+        }
+        // Notice that error can be null, array, string, or an Exception descendant.
+        return array($result, $error, $output);
     }
 
     /**
@@ -595,10 +634,19 @@ SCRIPT;
               author_can($post_object, EnzymesCapabilities::share_dynamic_custom_fields) &&
               $this->injection_author_can(EnzymesCapabilities::use_others_custom_fields))
         ) {
-            list($result, $error) = $this->safe_eval($code, $arguments);
-            if ( is_array($error) ) {
+            list($result, $error, $output) = $this->safe_eval($code, $arguments);
+            if ( $error ) {
+                $this->console_log(__('ENZYMES ERROR'));
+                $this->console_log(sprintf(__('post: %1$s - enzyme: %3$s - injection: {[%2$s]}'),
+                        $this->injection_post->ID, $this->current_sequence, $this->current_enzyme));
                 $this->console_log($error);
                 $result = null;
+            }
+            if ( $output ) {
+                $this->console_log(__('ENZYMES OUTPUT'));
+                $this->console_log(sprintf(__('post: %1$s - enzyme: %3$s - injection: {[%2$s]}'),
+                        $this->injection_post->ID, $this->current_sequence, $this->current_enzyme));
+                $this->console_log($output);
             }
         } else {
             $result = null;
@@ -620,9 +668,7 @@ SCRIPT;
     {
         $this->debug_print('executing post_item');
         // match again to be able to access groups by name...
-        $expression = $this->grammar['post_item']->wrapper_set('@@')
-                                                 ->expression(true);
-        preg_match($expression, $post_item, $matches);
+        preg_match($this->grammar_rule('post_item'), $post_item, $matches);
         $post_object = $this->wp_post($matches);
         if ( ! $post_object instanceof WP_Post ) {
             return null;
@@ -648,9 +694,7 @@ SCRIPT;
     function execute_author_item( $author_item, $num_args )
     {
         $this->debug_print('executing author_item');
-        $expression = $this->grammar['author_item']->wrapper_set('@@')
-                                                   ->expression(true);
-        preg_match($expression, $author_item, $matches);
+        preg_match($this->grammar_rule('author_item'), $author_item, $matches);
         $post_object = $this->wp_post($matches);
         if ( ! $post_object instanceof WP_Post ) {
             return null;
@@ -674,6 +718,7 @@ SCRIPT;
     protected
     function do_execution( $execution )
     {
+        $this->current_enzyme = $execution;
         preg_match($this->grammar_rule('execution'), $execution, $matches);
         $post_item   = @$matches['post_item'];
         $author_item = @$matches['author_item'];
@@ -740,9 +785,7 @@ SCRIPT;
     function transclude_post_item( $post_item, $post_object )
     {
         $this->debug_print('transcluding post_item');
-        $expression = $this->grammar['post_item']->wrapper_set('@@')
-                                                 ->expression(true);
-        preg_match($expression, $post_item, $matches);
+        preg_match($this->grammar_rule('post_item'), $post_item, $matches);
         $code   = $this->wp_post_field($post_object, $matches);
         $result = $this->transclude_code($code, $post_object);
         return $result;
@@ -761,9 +804,7 @@ SCRIPT;
     function transclude_author_item( $author_item, $post_object )
     {
         $this->debug_print('transcluding author_item');
-        $expression = $this->grammar['author_item']->wrapper_set('@@')
-                                                   ->expression(true);
-        preg_match($expression, $author_item, $matches);
+        preg_match($this->grammar_rule('author_item'), $author_item, $matches);
         $user_object = $this->wp_author($post_object);
         $code        = $this->wp_user_field($user_object, $matches);
         $result      = $this->transclude_code($code, $post_object);
@@ -788,9 +829,7 @@ SCRIPT;
              ! $same_author &&
              $this->injection_author_can(EnzymesCapabilities::use_others_attributes)
         ) {
-            $expression = $this->grammar['post_attr']->wrapper_set('@@')
-                                                     ->expression(true);
-            preg_match($expression, $post_attr, $matches);
+            preg_match($this->grammar_rule('post_attr'), $post_attr, $matches);
             $result = $this->wp_post_attribute($post_object, $matches);
         } else {
             $result = null;
@@ -816,9 +855,7 @@ SCRIPT;
              ! $same_author &&
              $this->injection_author_can(EnzymesCapabilities::use_others_attributes)
         ) {
-            $expression = $this->grammar['author_attr']->wrapper_set('@@')
-                                                       ->expression(true);
-            preg_match($expression, $author_attr, $matches);
+            preg_match($this->grammar_rule('author_attr'), $author_attr, $matches);
             $user_object = $this->wp_author($post_object);
             $result      = $this->wp_user_attribute($user_object, $matches);
         } else {
@@ -837,6 +874,7 @@ SCRIPT;
     protected
     function do_transclusion( $transclusion )
     {
+        $this->current_enzyme = $transclusion;
         preg_match($this->grammar_rule('transclusion'), $transclusion, $matches);
         $post_item   = @$matches['post_item'];
         $post_attr   = @$matches['post_attr'];
@@ -979,8 +1017,9 @@ SCRIPT;
             $result = '{[' . $sequence . ']}';           // skip this injection
             // after stripping out the forced version from $sequence, it any
         } else {
-            $this->catalyzed = new EnzymesSequence();
-            $rest            = $sequence;
+            $this->current_sequence = $could_be_sequence;
+            $this->catalyzed        = new EnzymesSequence();
+            $rest                   = $sequence;
             while (preg_match($this->e_sequence_start, $rest, $matches)) {
                 $execution    = @$matches['execution'];
                 $transclusion = @$matches['transclusion'];
@@ -1094,5 +1133,24 @@ SCRIPT;
         $result = $this->new_content . $after;
 
         return $result;
+    }
+
+    // -----------------------------------------------------------------------------------------------------------------
+
+    /**
+     * @var bool
+     */
+    public $debug_on = false;
+
+    /**
+     * @param mixed $something
+     */
+    public
+    function debug_print( $something )
+    {
+        if ( ! $this->debug_on ) {
+            return;
+        }
+        fwrite(STDERR, "\n" . print_r($something, true) . "\n");
     }
 }

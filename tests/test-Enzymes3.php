@@ -32,6 +32,14 @@ class Enzymes3Test
         return $method;
     }
 
+    /**
+     * @param      $name
+     * @param null $args
+     * @param null $object
+     *
+     * @return mixed
+     * @throws Exception
+     */
     function call_method( $name, $args = null, $object = null )
     {
         $method = $this->get_method($name);
@@ -126,9 +134,10 @@ class Enzymes3Test
 
     function test_safe_eval_no_error()
     {
-        $code = 'list($name) = $arguments;
-        echo $name;
-        return $name;';
+        $code = '
+            list($name) = $arguments;
+            echo $name;
+            return $name;';
         $name = 'Andrea';
         list($result, $error) = $this->call_method('safe_eval', array($code, array($name)));
         $this->assertNull($error);
@@ -136,17 +145,69 @@ class Enzymes3Test
         $this->expectOutputString('');
     }
 
-    function test_safe_eval_error()
+    function test_safe_eval_undefined_error()
     {
-        $code = 'list($name) = $arguments;
-        echo name;  // notice the error here
-        return $name;';
+        $code = '
+            list($name) = $arguments;
+            echo name;  // notice the error here
+            return $name;';
         $name = 'Andrea';
         list($result, $error) = $this->call_method('safe_eval', array($code, array($name)));
         $this->assertArrayHasKey('message', $error);
-        $message = "Use of undefined constant name - assumed 'name'";
-        $this->assertEquals($message, $error['message']);
+        $this->assertEquals("Use of undefined constant name - assumed 'name'", $error['message']);
         $this->assertEquals($name, $result);
+        $this->expectOutputString('');
+    }
+
+    function test_safe_eval_parse_error()
+    {
+        $code = '
+            echo $foo
+            echo $foo;';
+        $enzymes = new Enzymes3();
+        list(, $error, $output) = $this->call_method('safe_eval', array($code, array()), $enzymes);
+        $this->assertRegExp('@^Parse error:.+(T_ECHO).+on line 3$@m', $error);
+        $this->assertEquals('', $output);
+        $this->expectOutputString('');
+    }
+
+    function test_safe_eval_bubbling_exception()
+    {
+        $code = '
+            throw new Exception("What did you expect?");';
+        $enzymes = new Enzymes3();
+        list(, $error, $output) = $this->call_method('safe_eval', array($code, array()), $enzymes);
+        $this->assertInstanceOf('Exception', $error);
+        $this->assertEquals('What did you expect?', $error->getMessage());
+        $this->assertEquals('', $output);
+        $this->expectOutputString('');
+    }
+
+    function test_safe_eval_user_error()
+    {
+        $code = '
+            trigger_error("What did you expect?", E_USER_ERROR);';
+        $enzymes = new Enzymes3();
+        list(, $error, $output) = $this->call_method('safe_eval', array($code, array()), $enzymes);
+        $this->assertArrayHasKey('message', $error);
+        $this->assertEquals("What did you expect?", $error['message']);
+//        $this->assertEquals('', print_r($error, true));
+        $this->assertEquals('', $output);
+        $this->expectOutputString('');
+    }
+
+    function test_safe_eval_parse_error2()
+    {
+        $code = '
+            function my_function()
+                return "hello from my function";
+            }
+            return my_function();';
+        $enzymes = new Enzymes3();
+        list(, $error, $output) = $this->call_method('safe_eval', array($code, array()), $enzymes);
+        $this->assertRegExp('@^Parse error:.+(T_RETURN).+on line 3$@m', $error);
+//        $this->assertEquals('', print_r($error, true));
+        $this->assertEquals('', $output);
         $this->expectOutputString('');
     }
 
