@@ -298,6 +298,9 @@ class Enzymes3
         $this->init_grammar();
         $this->init_expressions();
         $this->options = new EnzymesOptions();
+
+        $this->has_eval_recovered = true;
+        register_shutdown_function(array($this, 'echo_last_eval_error'));
     }
 
     /**
@@ -323,33 +326,75 @@ class Enzymes3
     /**
      * Echo a script HTML tag to write data to the javascript console of the browser.
      *
-     * @param mixed $data
+     * @param mixed $logs
      */
     protected
-    function console_log( $data )
+    function console_log( $logs )
     {
-        $json   = json_encode((is_array($data) || is_object($data))
-                ? $data
-                : trim($data));
-        $output = "<script>if(window.console){if(window.console.log){window.console.log($json);}}</script>";
+        if ( count($logs) == 0 ) {
+            return;
+        }
+        $lines = array();
+        foreach ($logs as $data) {
+            $json    = json_encode((is_array($data) || is_object($data))
+                    ? $data
+                    : trim($data));
+            $lines[] = "window.console.log($json);";
+        }
+        $lines  = implode('', $lines);
+        $output = "<script>if(window.console){if(window.console.log){$lines}}</script>";
         echo $output;
+    }
+
+    protected $has_eval_recovered;
+
+    protected
+    function decorate( $title, $output )
+    {
+        $logs[] = $title;
+        $logs[] = sprintf(__('Post: %1$s - Enzyme: %3$s - Injection: {[%2$s]}'), $this->injection_post->ID,
+                $this->current_sequence, $this->current_enzyme);
+        $logs[] = $output;
+        return $logs;
+    }
+
+    public
+    function echo_last_eval_error()
+    {
+        // Only execute after a bad eval.
+        if ( $this->has_eval_recovered ) {
+            return;
+        }
+        // We are shutting down, so $error is really the last (fatal) error.
+        $error = error_get_last();
+        echo "\n";
+        $this->console_log($this->decorate(__('ENZYMES FATAL ERROR'),
+                sprintf(__('Fatal error: %1$s on line %2$s'), $error['message'], $error['line'])));
+        echo "\n";
     }
 
     /**
      * Handle an error in eval.
      *
-     * @param $type
-     * @param $message
-     * @param $file
-     * @param $line
+     * @param int    $type
+     * @param string $message
+     * @param string $file
+     * @param int    $line
+     * @param array  $context
      *
      * @return bool
      */
     protected
-    function set_last_eval_error( $type, $message, $file, $line )
+    function set_last_eval_error( $type = null, $message = null, $file = null, $line = null, $context = null )
     {
-        $this->last_eval_error = array('type' => $type, 'message' => $message, 'file' => $file, 'line' => $line);
-        return true;
+        $this->last_eval_error = array(
+                'type'    => $type,
+                'message' => $message,
+                'file'    => $file,
+                'line'    => $line,
+                'context' => $context
+        );
+        return true;  // True to consider the error handled and suppress bubbling.
     }
 
     /**
@@ -374,8 +419,8 @@ class Enzymes3
         fclose($temp);
 
         $result = trim($result);
-        $result = str_replace($filename, 'enzyme code', $result);
-        $result = str_replace("\nErrors parsing enzyme code", '', $result);
+        $result = str_replace("in $filename on", 'on', $result);
+        $result = str_replace("\nErrors parsing $filename", '', $result);
         return $result;
     }
 
@@ -394,33 +439,29 @@ class Enzymes3
     protected
     function safe_eval( $code, array $arguments = array() )
     {
-        $error        = $output = $exception = null;
-        $previous_ini = array();
-
         $previous_ini['scream.enabled'] = ini_set('scream.enabled', false);
-        set_error_handler(array($this, 'set_last_eval_error'), E_ALL);
+        set_error_handler(array($this, 'set_last_eval_error'), E_ALL | E_STRICT);
         ob_start();
+        $this->has_eval_recovered = false;
+        $this->last_eval_error    = null;
+        // -------------------------------------------------------------------------------------------------------------
         try {
-            $this->last_eval_error = null;
-            // ---------------------------------------------------------------------------------------------------------
             $result = @eval($code);
-            // ---------------------------------------------------------------------------------------------------------
-            $error                 = $this->last_eval_error;
-            $this->last_eval_error = null;
+            $error  = $this->last_eval_error;
         } catch ( Exception $e ) {
-            $result    = false;  // Let's force the same error treatment
-            $exception = $e;     // but remember the exception now.
+            $result = false;  // Let's force the same error treatment
+            $error  = $e;     // and take the exception as the error.
         }
-        $output = ob_get_clean();
+        // -------------------------------------------------------------------------------------------------------------
+        $this->last_eval_error    = null;
+        $this->has_eval_recovered = true;
+        $output                   = ob_get_clean();
         restore_error_handler();
         ini_set('scream.enabled', $previous_ini['scream.enabled']);
 
         if ( false === $result ) {
-            if ( null === $error && null === $exception ) {
+            if ( ! $error instanceof Exception ) {
                 $error = $this->php_lint($code);
-            }
-            if ( null === $error ) {
-                $error = $exception;
             }
         }
         // Notice that error can be null, array, string, or an Exception descendant.
