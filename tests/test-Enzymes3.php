@@ -1,4 +1,5 @@
 <?php
+require_once dirname(__FILE__) . '/../vendor/Ando/ErrorFactory.php';
 
 class Enzymes3Test
         extends WP_UnitTestCase
@@ -18,6 +19,7 @@ class Enzymes3Test
      *
      * @return null|ReflectionMethod
      */
+    protected
     function get_method( $name )
     {
         if ( is_null($this->reflection) ) {
@@ -40,6 +42,7 @@ class Enzymes3Test
      * @return mixed
      * @throws Exception
      */
+    protected
     function call_method( $name, $args = null, $object = null )
     {
         $method = $this->get_method($name);
@@ -56,6 +59,7 @@ class Enzymes3Test
         return $result;
     }
 
+    public
     function setUp()
     {
         parent::setUp();
@@ -74,6 +78,7 @@ class Enzymes3Test
         $post = get_post($global_post_id);
     }
 
+    public
     function test_an_escaped_injection_is_ignored()
     {
         $enzymes = new Enzymes3();
@@ -87,6 +92,7 @@ class Enzymes3Test
         $this->assertEquals($content2, $enzymes->metabolize($content1));
     }
 
+    public
     function test_content_with_no_injections_is_not_filtered()
     {
         $enzymes = new Enzymes3();
@@ -95,6 +101,7 @@ class Enzymes3Test
         $this->assertEquals($content, $enzymes->metabolize($content));
     }
 
+    public
     function test_content_with_injections_is_filtered()
     {
         // compare with test_dangling_enzymes_are_ignored
@@ -112,6 +119,7 @@ class Enzymes3Test
         $this->assertEquals($content2, $mock->metabolize($content1));
     }
 
+    public
     function test_dangling_enzymes_are_ignored()
     {
         // compare with test_content_with_injections_is_filtered
@@ -132,6 +140,7 @@ class Enzymes3Test
         $this->assertEquals($content2, $mock->metabolize($content1));
     }
 
+    public
     function test_safe_eval_no_error()
     {
         $code = '
@@ -145,35 +154,225 @@ class Enzymes3Test
         $this->expectOutputString('');
     }
 
-    function test_safe_eval_undefined_error()
+    public
+    function test_safe_eval_E_WARNING()
     {
-        $code = '
-            list($name) = $arguments;
-            echo name;  // notice the error here
-            return $name;';
-        $name = 'Andrea';
-        list($result, $error) = $this->call_method('safe_eval', array($code, array($name)));
-        $this->assertArrayHasKey('message', $error);
-        $this->assertEquals("Use of undefined constant name - assumed 'name'", $error['message']);
-        $this->assertEquals($name, $result);
         $this->expectOutputString('');
-    }
 
-    function test_safe_eval_parse_error()
-    {
-        $code = '
-            echo $foo
-            echo $foo;';
+        $code    = Ando_ErrorFactory::E_WARNING_code();
         $enzymes = new Enzymes3();
         list(, $error, $output) = $this->call_method('safe_eval', array($code, array()), $enzymes);
-        $this->assertRegExp('@^Parse error:.+(T_ECHO).+on line 3$@m', $error);
-        $this->assertEquals('', $output);
-        $this->expectOutputString('');
+
+        $this->assertTrue(is_array($error));
+        extract($error);
+        /**
+         * @var $type
+         * @var $message
+         */
+        $this->assertEquals(E_WARNING, $type);
+        $this->assertNotEmpty($message);
+
+        $this->assertEmpty($output);
     }
 
+    public
+    function test_safe_eval_E_PARSE()
+    {
+        $this->expectOutputString('');
+
+        $code    = Ando_ErrorFactory::E_PARSE_code();
+        $enzymes = new Enzymes3();
+        list(, $error, $output) = $this->call_method('safe_eval', array($code, array()), $enzymes);
+
+        $this->assertTrue($error);
+        $this->assertRegExp('@^Parse error:@m', $output);
+    }
+
+    public
+    function test_safe_eval_E_NOTICE()
+    {
+        $this->expectOutputString('');
+
+        $code    = Ando_ErrorFactory::E_NOTICE_code();
+        $enzymes = new Enzymes3();
+        list(, $error, $output) = $this->call_method('safe_eval', array($code, array()), $enzymes);
+
+        $this->assertTrue(is_array($error));
+        extract($error);
+        /**
+         * @var $type
+         * @var $message
+         */
+        $this->assertEquals(E_NOTICE, $type);
+        $this->assertNotEmpty($message);
+
+        $this->assertEmpty($output);
+    }
+
+    public
+    function test_safe_eval_E_COMPILE_WARNING()
+    {
+        $this->expectOutputString('');
+
+        $code    = Ando_ErrorFactory::E_COMPILE_WARNING_code();
+        $enzymes = new Enzymes3();
+        list(, $error, $output) = $this->call_method('safe_eval', array($code, array()), $enzymes);
+
+        $this->assertFalse(is_array($error));
+        $this->assertRegExp('@^Warning:@m', $output);
+    }
+
+    public
+    function test_safe_eval_E_USER_WARNING()
+    {
+        $this->expectOutputString('');
+
+        $code    = Ando_ErrorFactory::E_USER_WARNING_code();
+        $enzymes = new Enzymes3();
+        list(, $error, $output) = $this->call_method('safe_eval', array($code, array()), $enzymes);
+
+        $this->assertTrue(is_array($error));
+        extract($error);
+        /**
+         * @var $type
+         * @var $message
+         */
+        $this->assertEquals(E_USER_WARNING, $type);
+        $this->assertNotEmpty($message);
+
+        $this->assertEmpty($output);
+    }
+
+    public
+    function test_safe_eval_E_USER_NOTICE()
+    {
+        $this->expectOutputString('');
+
+        $code    = Ando_ErrorFactory::E_USER_NOTICE_code();
+        $enzymes = new Enzymes3();
+        list(, $error, $output) = $this->call_method('safe_eval', array($code, array()), $enzymes);
+
+        $this->assertTrue(is_array($error));
+        extract($error);
+        /**
+         * @var $type
+         * @var $message
+         */
+        $this->assertEquals(E_USER_NOTICE, $type);
+        $this->assertNotEmpty($message);
+
+        $this->assertEmpty($output);
+    }
+
+    public
+    function test_safe_eval_E_STRICT()
+    {
+        $this->expectOutputString('');
+
+        $code    = Ando_ErrorFactory::E_STRICT_code();
+        $enzymes = new Enzymes3();
+        list(, $error, $output) = $this->call_method('safe_eval', array($code, array()), $enzymes);
+
+        $this->assertTrue(is_array($error));
+        extract($error);
+        /**
+         * @var $type
+         * @var $message
+         */
+        $this->assertEquals(E_STRICT, $type);
+        $this->assertNotEmpty($message);
+
+        $this->assertEmpty($output);
+    }
+
+    public
+    function test_safe_eval_E_DEPRECATED()
+    {
+        $this->expectOutputString('');
+
+        $code    = Ando_ErrorFactory::E_DEPRECATED_code();
+        $enzymes = new Enzymes3();
+        list(, $error, $output) = $this->call_method('safe_eval', array($code, array()), $enzymes);
+
+        $this->assertTrue(is_array($error));
+        extract($error);
+        /**
+         * @var $type
+         * @var $message
+         */
+        $this->assertEquals(E_DEPRECATED, $type);
+        $this->assertNotEmpty($message);
+
+        $this->assertEmpty($output);
+    }
+
+    public
+    function test_safe_eval_E_USER_DEPRECATED()
+    {
+        $this->expectOutputString('');
+
+        $code    = Ando_ErrorFactory::E_USER_DEPRECATED_code();
+        $enzymes = new Enzymes3();
+        list(, $error, $output) = $this->call_method('safe_eval', array($code, array()), $enzymes);
+
+        $this->assertTrue(is_array($error));
+        extract($error);
+        /**
+         * @var $type
+         * @var $message
+         */
+        $this->assertEquals(E_USER_DEPRECATED, $type);
+        $this->assertNotEmpty($message);
+
+        $this->assertEmpty($output);
+    }
+
+    public
+    function test_safe_eval_E_USER_ERROR()
+    {
+        $this->expectOutputString('');
+
+        $code    = Ando_ErrorFactory::E_USER_ERROR_code();
+        $enzymes = new Enzymes3();
+        list(, $error, $output) = $this->call_method('safe_eval', array($code, array()), $enzymes);
+
+        $this->assertTrue(is_array($error));
+        extract($error);
+        /**
+         * @var $type
+         * @var $message
+         */
+        $this->assertEquals(E_USER_ERROR, $type);
+        $this->assertNotEmpty($message);
+
+        $this->assertEmpty($output);
+    }
+
+    public
+    function test_safe_eval_E_RECOVERABLE_ERROR()
+    {
+        $this->expectOutputString('');
+
+        $code    = Ando_ErrorFactory::E_RECOVERABLE_ERROR_code();
+        $enzymes = new Enzymes3();
+        list(, $error, $output) = $this->call_method('safe_eval', array($code, array()), $enzymes);
+
+        $this->assertTrue(is_array($error));
+        extract($error);
+        /**
+         * @var $type
+         * @var $message
+         */
+        $this->assertEquals(E_RECOVERABLE_ERROR, $type);
+        $this->assertNotEmpty($message);
+
+        $this->assertEmpty($output);
+    }
+
+    public
     function test_safe_eval_bubbling_exception()
     {
-        $code = '
+        $code    = '
             throw new Exception("What did you expect?");';
         $enzymes = new Enzymes3();
         list(, $error, $output) = $this->call_method('safe_eval', array($code, array()), $enzymes);
@@ -183,34 +382,7 @@ class Enzymes3Test
         $this->expectOutputString('');
     }
 
-    function test_safe_eval_user_error()
-    {
-        $code = '
-            trigger_error("What did you expect?", E_USER_ERROR);';
-        $enzymes = new Enzymes3();
-        list(, $error, $output) = $this->call_method('safe_eval', array($code, array()), $enzymes);
-        $this->assertArrayHasKey('message', $error);
-        $this->assertEquals("What did you expect?", $error['message']);
-//        $this->assertEquals('', print_r($error, true));
-        $this->assertEquals('', $output);
-        $this->expectOutputString('');
-    }
-
-    function test_safe_eval_parse_error2()
-    {
-        $code = '
-            function my_function()
-                return "hello from my function";
-            }
-            return my_function();';
-        $enzymes = new Enzymes3();
-        list(, $error, $output) = $this->call_method('safe_eval', array($code, array()), $enzymes);
-        $this->assertRegExp('@^Parse error:.+(T_RETURN).+on line 3$@m', $error);
-//        $this->assertEquals('', print_r($error, true));
-        $this->assertEquals('', $output);
-        $this->expectOutputString('');
-    }
-
+    public
     function test_wp_post()
     {
         global $post;
@@ -245,12 +417,14 @@ class Enzymes3Test
         $this->assertEquals($post->ID, $result->ID);
     }
 
+    public
     function test_unquote()
     {
         $result = $this->call_method('unquote', array('=This is how you quote a \=string\= in Enzymes.='));
         $this->assertEquals('This is how you quote a =string= in Enzymes.', $result);
     }
 
+    public
     function test_wp_post_field()
     {
         $post_id = $this->factory->post->create();
@@ -266,6 +440,7 @@ class Enzymes3Test
         $this->assertEquals('sample value', $result);
     }
 
+    public
     function test_wp_author()
     {
         $user_id = $this->factory->user->create();
@@ -275,6 +450,7 @@ class Enzymes3Test
         $this->assertEquals($user_id, $result->ID);
     }
 
+    public
     function test_strip_blanks()
     {
         // case with no strings
@@ -302,6 +478,7 @@ class Enzymes3Test
         and new lines=', $result);
     }
 
+    public
     function test_clean_up()
     {
         $result = $this->call_method('clean_up', array(
@@ -314,6 +491,7 @@ class Enzymes3Test
         $this->assertEquals('=one {[to]} three=|1|2|3|array(3)|hash(1)|456.sum(1)', $result);
     }
 
+    public
     function test_literal_integer_is_replaced_as_is()
     {
         $enzymes = new Enzymes3();
@@ -323,6 +501,7 @@ class Enzymes3Test
         $this->assertEquals($content2, $enzymes->metabolize($content1));
     }
 
+    public
     function test_literal_string_is_replaced_unquoted()
     {
         $enzymes = new Enzymes3();
@@ -332,6 +511,7 @@ class Enzymes3Test
         $this->assertEquals($content2, $enzymes->metabolize($content1));
     }
 
+    public
     function test_transcluded_from_current_post()
     {
         $post_id = $this->factory->post->create();
@@ -346,6 +526,7 @@ class Enzymes3Test
         $this->assertEquals($content2, $enzymes->metabolize($content1, $post));
     }
 
+    public
     function test_a_final_literal_wins()
     {
         $post_id = $this->factory->post->create();
@@ -359,6 +540,7 @@ class Enzymes3Test
         $this->assertEquals($content2, $enzymes->metabolize($content1, $post));
     }
 
+    public
     function test_transcluded_from_another_post()
     {
         $post_1_id = $this->factory->post->create();
@@ -375,6 +557,7 @@ class Enzymes3Test
         $this->assertEquals($content2, $enzymes->metabolize($content1, $post_1));
     }
 
+    public
     function test_transcluded_from_another_post_by_slug()
     {
         $post_1_id = $this->factory->post->create();
@@ -391,6 +574,7 @@ class Enzymes3Test
         $this->assertEquals($content2, $enzymes->metabolize($content1, $post_1));
     }
 
+    public
     function test_executed_with_no_arguments()
     {
         $post_id = $this->factory->post->create();
@@ -410,6 +594,7 @@ class Enzymes3Test
         $this->assertEquals($content2, $enzymes->metabolize($content1, $post));
     }
 
+    public
     function test_executed_with_one_argument()
     {
         $post_id = $this->factory->post->create();
@@ -429,6 +614,7 @@ class Enzymes3Test
         $this->assertEquals($content2, $enzymes->metabolize($content1, $post));
     }
 
+    public
     function test_executed_with_many_arguments()
     {
         $post_id = $this->factory->post->create();
@@ -446,6 +632,7 @@ class Enzymes3Test
         $this->assertEquals($content2, $enzymes->metabolize($content1, $post));
     }
 
+    public
     function test_executed_with_an_array_argument()
     {
         $post_id = $this->factory->post->create();
@@ -463,6 +650,7 @@ class Enzymes3Test
         $this->assertEquals($content2, $enzymes->metabolize($content1, $post));
     }
 
+    public
     function test_executed_with_a_hash_argument()
     {
         $post_id = $this->factory->post->create();
@@ -479,6 +667,7 @@ class Enzymes3Test
         $this->assertEquals($content2, $enzymes->metabolize($content1, $post));
     }
 
+    public
     function test_author_properties()
     {
         /*
@@ -553,6 +742,7 @@ class Enzymes3Test
         $this->assertEquals($content2, $enzymes->metabolize($content1, $post));
     }
 
+    public
     function test_transcluded_author_from_current_post()
     {
         $user_id = $this->factory->user->create(array('role' => EnzymesCapabilities::User));
@@ -568,6 +758,7 @@ class Enzymes3Test
         $this->assertEquals($content2, $enzymes->metabolize($content1, $post));
     }
 
+    public
     function test_transcluded_author_from_another_post()
     {
         $user_1_id = $this->factory->user->create(array('role' => EnzymesCapabilities::PrivilegedUser));
@@ -586,6 +777,7 @@ class Enzymes3Test
         $this->assertEquals($content2, $enzymes->metabolize($content1, $post_1));
     }
 
+    public
     function test_transcluded_author_from_another_post_by_slug()
     {
         $user_1_id = $this->factory->user->create(array('role' => EnzymesCapabilities::PrivilegedUser));
@@ -607,6 +799,7 @@ class Enzymes3Test
         $this->assertEquals($content2, $enzymes->metabolize($content1, $post_1));
     }
 
+    public
     function test_properties()
     {
         /*
@@ -668,6 +861,7 @@ class Enzymes3Test
         $this->assertEquals($content2, $enzymes->metabolize($content1, $post));
     }
 
+    public
     function test_executed_author_with_no_arguments()
     {
         $user_id = $this->factory->user->create(array('role' => EnzymesCapabilities::Coder));
@@ -688,6 +882,7 @@ class Enzymes3Test
         $this->assertEquals($content2, $enzymes->metabolize($content1, $post));
     }
 
+    public
     function test_executed_author_with_one_argument()
     {
         $user_id = $this->factory->user->create(array('role' => EnzymesCapabilities::Coder));
@@ -708,6 +903,7 @@ class Enzymes3Test
         $this->assertEquals($content2, $enzymes->metabolize($content1, $post));
     }
 
+    public
     function test_executed_author_with_many_arguments()
     {
         $user_id = $this->factory->user->create(array('role' => EnzymesCapabilities::Coder));
@@ -726,6 +922,7 @@ class Enzymes3Test
         $this->assertEquals($content2, $enzymes->metabolize($content1, $post));
     }
 
+    public
     function test_executed_author_with_an_array_argument()
     {
         $user_id = $this->factory->user->create(array('role' => EnzymesCapabilities::Coder));
@@ -744,6 +941,7 @@ class Enzymes3Test
         $this->assertEquals($content2, $enzymes->metabolize($content1, $post));
     }
 
+    public
     function test_executed_author_with_a_hash_argument()
     {
         $user_id = $this->factory->user->create(array('role' => EnzymesCapabilities::Coder));

@@ -368,7 +368,8 @@ class Enzymes3
         // We are shutting down, so $error is really the last (fatal) error.
         $error = error_get_last();
         $this->console_log($this->decorate(__('ENZYMES SHUTDOWN ERROR'),
-                sprintf(__('%1$s: %2$s on line %3$s.'), Ando_ErrorFactory::to_str($error['type']), $error['message'], $error['line'])));
+                sprintf(__('%1$s: %2$s on line %3$s.'), Ando_ErrorFactory::to_str($error['type']), $error['message'],
+                        $error['line'])));
     }
 
     /**
