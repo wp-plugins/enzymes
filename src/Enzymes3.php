@@ -367,10 +367,8 @@ class Enzymes3
         }
         // We are shutting down, so $error is really the last (fatal) error.
         $error = error_get_last();
-        echo "\n";
-        $this->console_log($this->decorate(__('ENZYMES FATAL ERROR'),
-                sprintf(__('Fatal error: %1$s on line %2$s'), $error['message'], $error['line'])));
-        echo "\n";
+        $this->console_log($this->decorate(__('ENZYMES SHUTDOWN ERROR'),
+                sprintf(__('%1$s: %2$s on line %3$s.'), Ando_ErrorFactory::to_str($error['type']), $error['message'], $error['line'])));
     }
 
     /**
@@ -389,33 +387,6 @@ class Enzymes3
     {
         $this->last_eval_error = compact('type', 'message', 'file', 'line', 'context');
         return true;  // True to consider the error handled and suppress bubbling.
-    }
-
-    /**
-     * Check the syntax of a code snippet.
-     *
-     * @param $code
-     *
-     * @return mixed|null|string
-     */
-    protected
-    function php_lint( $code )
-    {
-        $result = null;
-        if ( ! function_exists('shell_exec') ) {
-            return $result;
-        }
-        $temp     = tmpfile();
-        $meta     = stream_get_meta_data($temp);
-        $filename = $meta['uri'];
-        fwrite($temp, "<?php $code");
-        $result = shell_exec("php -n -l $filename");  // -n = no ini, -l = only lint
-        fclose($temp);
-
-        $result = trim($result);
-        $result = str_replace("in $filename on", 'on', $result);
-        $result = str_replace("\nErrors parsing $filename", '', $result);
-        return $result;
     }
 
     /**
@@ -440,7 +411,7 @@ class Enzymes3
         $this->last_eval_error    = null;
         // -------------------------------------------------------------------------------------------------------------
         try {
-            $result = @eval($code);
+            $result = eval($code);
             $error  = $this->last_eval_error;
         } catch ( Exception $e ) {
             $result = false;  // Let's force the same error treatment
@@ -455,10 +426,10 @@ class Enzymes3
 
         if ( false === $result ) {
             if ( ! $error instanceof Exception ) {
-                $error = $this->php_lint($code);
+                $error = true; // Assume error info is into $output.
             }
         }
-        // Notice that error can be null, array, string, or an Exception descendant.
+        // Note that $error can be true, array, or exception.
         return array($result, $error, $output);
     }
 
