@@ -384,16 +384,10 @@ class Enzymes3
      *
      * @return bool
      */
-    protected
+    public
     function set_last_eval_error( $type = null, $message = null, $file = null, $line = null, $context = null )
     {
-        $this->last_eval_error = array(
-                'type'    => $type,
-                'message' => $message,
-                'file'    => $file,
-                'line'    => $line,
-                'context' => $context
-        );
+        $this->last_eval_error = compact('type', 'message', 'file', 'line', 'context');
         return true;  // True to consider the error handled and suppress bubbling.
     }
 
@@ -440,7 +434,7 @@ class Enzymes3
     function safe_eval( $code, array $arguments = array() )
     {
         $previous_ini['scream.enabled'] = ini_set('scream.enabled', false);
-        set_error_handler(array($this, 'set_last_eval_error'), E_ALL | E_STRICT);
+        set_error_handler(array($this, 'set_last_eval_error'));
         ob_start();
         $this->has_eval_recovered = false;
         $this->last_eval_error    = null;
