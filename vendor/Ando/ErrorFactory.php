@@ -325,7 +325,7 @@ class Ando_ErrorFactory
      *
      * @param int|int[] $errors
      *
-     * @return string[]
+     * @return string|string[]
      */
     public static
     function to_str( $errors )
