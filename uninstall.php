@@ -5,5 +5,5 @@ if (basename(dirname(__FILE__)) != dirname(WP_UNINSTALL_PLUGIN))
     return;
 }
 
-require 'EnzymesPlugin.php';
+require 'src/EnzymesPlugin.php';
 EnzymesPlugin::on_uninstall();

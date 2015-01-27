@@ -78,6 +78,22 @@ class Enzymes3Test
         $post = get_post($global_post_id);
     }
 
+    public static
+    function setUpBeforeClass()
+    {
+        if ( function_exists('xdebug_disable') ) {
+            xdebug_disable();
+        }
+    }
+
+    public static
+    function tearDownAfterClass()
+    {
+        if ( function_exists('xdebug_enable') ) {
+            xdebug_enable();
+        }
+    }
+
     public
     function test_an_escaped_injection_is_ignored()
     {

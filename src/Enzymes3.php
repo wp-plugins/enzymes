@@ -1,5 +1,6 @@
 <?php
 require_once dirname(ENZYMES_FILENAME) . '/vendor/Ando/Regex.php';
+require_once dirname(ENZYMES_FILENAME) . '/vendor/Ando/ErrorFactory.php';
 require_once 'EnzymesSequence.php';
 require_once 'EnzymesCapabilities.php';
 require_once 'EnzymesOptions.php';
