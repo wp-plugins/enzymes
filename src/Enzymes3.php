@@ -7,6 +7,12 @@ require_once 'EnzymesOptions.php';
 
 class Enzymes3
 {
+    const FORCE_DEFAULT_VERSION = 'enzymes';
+
+    const FORCE_INJECTION_VERSION_2 = '=enzymes.2=';
+
+    const FORCE_INJECTION_VERSION_3 = '=enzymes.3=';
+
     /**
      *  When calling the engine directly, for forcing the global post, use one of the following:
      * - EnzymesPlugin::engine()->metabolize($content);
@@ -972,17 +978,25 @@ class Enzymes3
         if ( is_null($this->injection_post) ) {
             return 3;
         }
-        // By looking at these dates we can only assume a default version, because another one
-        // could have been forced by the user right into an injection. --
-        $result = $this->injection_post->post_date_gmt <= EnzymesPlugin::activated_on()
+        // By looking at these dates we can only assume a post default version, because the user
+        // could have forced another default version or another injection version. --
+        $post_default = $this->injection_post->post_date_gmt <= EnzymesPlugin::activated_on()
                 ? 2
                 : 3;
+        // Allow a user to specify a different default version by using an "enzymes" custom field
+        // set to 2 or 3. --
+        $user_default = get_post_meta($this->injection_post->ID, self::FORCE_DEFAULT_VERSION, true);
+        if (! in_array($user_default, array(null, 2, 3))) {
+            $user_default = null;
+        }
+
+        $result = ! is_null($user_default) ? $user_default : $post_default;
         return $result;
     }
 
     /**
      * Detect the version of an injection with a sequence.
-     * Remove the forced version from the sequence, if that was the case.
+     * Remove the forced version from the sequence, if any.
      *
      * @param string $sequence
      *
@@ -991,9 +1005,10 @@ class Enzymes3
     protected
     function sequence_version( &$sequence )
     {
-        $result          = $this->default_version();
-        $forced_2_prefix = '=enzymes 2=|';
-        $forced_3_prefix = '=enzymes 3=|';
+        $forced_2_prefix = self::FORCE_INJECTION_VERSION_2 . '|';
+        $forced_3_prefix = self::FORCE_INJECTION_VERSION_3 . '|';
+
+        $result = $this->default_version();
         switch (true) {
             case (0 === strpos($sequence, $forced_2_prefix)):
                 $sequence = substr($sequence, strlen($forced_2_prefix));
@@ -1022,8 +1037,8 @@ class Enzymes3
         if ( ! $there_are_only_chained_enzymes ) {
             $result = '{[' . $could_be_sequence . ']}';  // skip this injection AS IS
         } elseif ( $this->sequence_version($sequence) == 2 ) {
-            $result = '{[' . $sequence . ']}';           // skip this injection
-            // after stripping out the forced version from $sequence, it any
+            $result = '{[' . $sequence . ']}';  // skip this injection
+                                                // after stripping out the forced version from $sequence, if any
         } else {
             $this->current_sequence = $could_be_sequence;
             $this->catalyzed        = new EnzymesSequence();
@@ -1132,7 +1147,7 @@ class Enzymes3
             $after             = @$matches['after'];
             $escaped_injection = '{' == substr($before, -1);  // "{{[ .. ]}"
             if ( $escaped_injection ) {
-                $result = '[' . $could_be_sequence . ']}';  // consume one brace of the pair
+                $result = '{[' . $could_be_sequence . ']}';  // do not unescape now, version 2 will do it later...
             } else {
                 $result = $this->process($could_be_sequence);
             }
