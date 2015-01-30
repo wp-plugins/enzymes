@@ -359,14 +359,14 @@ class Enzymes3
      * Add a title and some context to the output.
      *
      * @param string $title
-     * @param mixed $output
+     * @param mixed  $output
      *
      * @return array
      */
     protected
     function decorate( $title, $output )
     {
-        $result = array();
+        $result   = array();
         $result[] = $title;
         $result[] = sprintf(__('Post: %1$s - Enzyme: %3$s - Injection: {[%2$s]}'), $this->injection_post->ID,
                 $this->current_sequence, $this->current_enzyme);
@@ -422,8 +422,12 @@ class Enzymes3
      * @return array
      */
     protected
-    function safe_eval( $code, array $arguments = array() )
+    function clean_eval( $code, array $arguments = array() )
     {
+        $previous_ini = array();
+        if ( function_exists('xdebug_is_enabled') && xdebug_is_enabled() ) {
+            $previous_ini['xdebug.scream'] = ini_set('xdebug.scream', false);
+        }
         $previous_ini['scream.enabled'] = ini_set('scream.enabled', false);
         set_error_handler(array($this, 'set_last_eval_error'));
         ob_start();
@@ -442,7 +446,9 @@ class Enzymes3
         $this->has_eval_recovered = true;
         $output                   = ob_get_clean();
         restore_error_handler();
-        ini_set('scream.enabled', $previous_ini['scream.enabled']);
+        foreach ($previous_ini as $setting => $value) {
+            ini_set($setting, $value);
+        }
 
         if ( false === $result ) {
             if ( ! $error instanceof Exception ) {
@@ -463,8 +469,8 @@ class Enzymes3
     protected
     function wp_post( array $matches )
     {
-        $post = @$matches['post'];
-        $slug = @$matches['slug'];
+        $post = $this->value($matches, 'post');
+        $slug = $this->value($matches, 'slug');
         switch (true) {
             case ($post == ''):
                 $result = $this->injection_post;
@@ -513,8 +519,8 @@ class Enzymes3
     protected
     function wp_post_field( $post_object, array $matches )
     {
-        $field  = @$matches['field'];
-        $string = @$matches['string'];
+        $field  = $this->value($matches, 'field');
+        $string = $this->value($matches, 'string');
         if ( $string ) {
             $field = $this->unquote($field);
         }
@@ -538,8 +544,8 @@ class Enzymes3
     protected
     function wp_post_attribute( $post_object, array $matches )
     {
-        $field  = @$matches['field'];
-        $string = @$matches['string'];
+        $field  = $this->value($matches, 'field');
+        $string = $this->value($matches, 'string');
         if ( $string ) {
             $field = $this->unquote($field);
         }
@@ -558,8 +564,8 @@ class Enzymes3
     protected
     function wp_user_field( $user_object, array $matches )
     {
-        $field  = @$matches['field'];
-        $string = @$matches['string'];
+        $field  = $this->value($matches, 'field');
+        $string = $this->value($matches, 'string');
         if ( $string ) {
             $field = $this->unquote($field);
         }
@@ -583,8 +589,8 @@ class Enzymes3
     protected
     function wp_user_attribute( $user_object, array $matches )
     {
-        $field  = @$matches['field'];
-        $string = @$matches['string'];
+        $field  = $this->value($matches, 'field');
+        $string = $this->value($matches, 'string');
         if ( $string ) {
             $field = $this->unquote($field);
         }
@@ -660,7 +666,7 @@ class Enzymes3
               author_can($post_object, EnzymesCapabilities::share_dynamic_custom_fields) &&
               $this->injection_author_can(EnzymesCapabilities::use_others_custom_fields))
         ) {
-            list($result, $error, $output) = $this->safe_eval($code, $arguments);
+            list($result, $error, $output) = $this->clean_eval($code, $arguments);
             if ( $error ) {
                 $this->console_log($this->decorate(__('ENZYMES ERROR'), $error));
                 $result = null;
@@ -740,9 +746,9 @@ class Enzymes3
     {
         $this->current_enzyme = $execution;
         preg_match($this->grammar_rule('execution'), $execution, $matches);
-        $post_item   = @$matches['post_item'];
-        $author_item = @$matches['author_item'];
-        $num_args    = (int) @$matches['num_args'];
+        $post_item   = $this->value($matches, 'post_item');
+        $author_item = $this->value($matches, 'author_item');
+        $num_args    = (int) $this->value($matches, 'num_args');
         switch (true) {
             case (strpos($execution, 'array(') === 0 && $num_args > 0):
                 $result = $this->catalyzed->pop($num_args);
@@ -896,10 +902,10 @@ class Enzymes3
     {
         $this->current_enzyme = $transclusion;
         preg_match($this->grammar_rule('transclusion'), $transclusion, $matches);
-        $post_item   = @$matches['post_item'];
-        $post_attr   = @$matches['post_attr'];
-        $author_item = @$matches['author_item'];
-        $author_attr = @$matches['author_attr'];
+        $post_item   = $this->value($matches, 'post_item');
+        $post_attr   = $this->value($matches, 'post_attr');
+        $author_item = $this->value($matches, 'author_item');
+        $author_attr = $this->value($matches, 'author_attr');
         $post_object = $this->wp_post($matches);
         if ( ! $post_object instanceof WP_Post ) {
             return null;
@@ -934,9 +940,9 @@ class Enzymes3
     protected
     function strip_blanks( array $matches )
     {
-        $before_string = @$matches['before_string'];
-        $string        = @$matches['string'];
-        $anything_else = @$matches['anything_else'];
+        $before_string = $this->value($matches, 'before_string');
+        $string        = $this->value($matches, 'string');
+        $anything_else = $this->value($matches, 'anything_else');
         $outside       = $string
                 ? $before_string
                 : $anything_else;
@@ -992,7 +998,7 @@ class Enzymes3
         // Allow a user to specify a different default version by using an "enzymes" custom field
         // set to 2 or 3. --
         $forced_version = get_post_meta($this->injection_post->ID, self::FORCE_POST_VERSION, true);
-        if (in_array($forced_version, array(2, 3))) {
+        if ( in_array($forced_version, array(2, 3)) ) {
             $result = $forced_version;
         }
 
@@ -1042,18 +1048,18 @@ class Enzymes3
             $result = '{[' . $could_be_sequence . ']}';  // skip this injection AS IS
         } elseif ( $this->injection_engine_version($sequence) == 2 ) {
             $result = '{[' . $sequence . ']}';  // skip this injection
-                                                // after stripping out the forced version from $sequence, if any
+            // REM: injection_engine_version strips out the forced version from $sequence, if any
         } else {
             $this->current_sequence = $could_be_sequence;
             $this->catalyzed        = new EnzymesSequence();
             $rest                   = $sequence;
             while (preg_match($this->e_sequence_start, $rest, $matches)) {
-                $execution    = @$matches['execution'];
-                $transclusion = @$matches['transclusion'];
-                $literal      = @$matches['literal'];
-                $str_literal  = @$matches['str_literal'];
-                $number       = @$matches['number'];
-                $rest         = @$matches['rest'];
+                $execution    = $this->value($matches, 'execution');
+                $transclusion = $this->value($matches, 'transclusion');
+                $literal      = $this->value($matches, 'literal');
+                $str_literal  = $this->value($matches, 'str_literal');
+                $number       = $this->value($matches, 'number');
+                $rest         = $this->value($matches, 'rest');
                 switch (true) {
                     case $execution != '':
                         $argument = $this->do_execution($execution);
@@ -1146,9 +1152,9 @@ class Enzymes3
         }
         $this->new_content = '';
         do {
-            $before            = @$matches['before'];
-            $could_be_sequence = @$matches['could_be_sequence'];
-            $after             = @$matches['after'];
+            $before            = $this->value($matches, 'before');
+            $could_be_sequence = $this->value($matches, 'could_be_sequence');
+            $after             = $this->value($matches, 'after');
             $escaped_injection = '{' == substr($before, -1);  // "{{[ .. ]}"
             if ( $escaped_injection ) {
                 $result = '{[' . $could_be_sequence . ']}';  // do not unescape now, version 2 will do it later...
@@ -1160,6 +1166,26 @@ class Enzymes3
         $result = $this->new_content . $after;
 
         return $result;
+    }
+
+    /**
+     * Cleanly get a default for undefined keys and the set value otherwise.
+     *
+     * Prefixing the error suppression operator (@) accomplishes he same result,
+     * but I wanted to get rid of all these notices still present while debugging.
+     *
+     * @param array  $matches
+     * @param string $key
+     * @param mixed  $default
+     *
+     * @return mixed
+     */
+    protected
+    function value( $matches, $key, $default = null )
+    {
+        return isset($matches[$key])
+                ? $matches[$key]
+                : $default;
     }
 
     // -----------------------------------------------------------------------------------------------------------------
