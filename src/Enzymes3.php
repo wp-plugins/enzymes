@@ -7,11 +7,11 @@ require_once 'EnzymesOptions.php';
 
 class Enzymes3
 {
-    const FORCE_DEFAULT_VERSION = 'enzymes';
+    const FORCE_POST_VERSION = 'enzymes';
 
-    const FORCE_INJECTION_VERSION_2 = '=enzymes.2=';
+    const FORCE_INJECTION_VERSION_2 = '=enzymes 2=';
 
-    const FORCE_INJECTION_VERSION_3 = '=enzymes.3=';
+    const FORCE_INJECTION_VERSION_3 = '=enzymes 3=';
 
     /**
      *  When calling the engine directly, for forcing the global post, use one of the following:
@@ -333,10 +333,10 @@ class Enzymes3
     /**
      * Echo a script HTML tag to write data to the javascript console of the browser.
      *
-     * @param mixed $logs
+     * @param array $logs
      */
     protected
-    function console_log( $logs )
+    function console_log( array $logs )
     {
         if ( count($logs) == 0 ) {
             return;
@@ -355,16 +355,28 @@ class Enzymes3
 
     protected $has_eval_recovered;
 
+    /**
+     * Add a title and some context to the output.
+     *
+     * @param string $title
+     * @param mixed $output
+     *
+     * @return array
+     */
     protected
     function decorate( $title, $output )
     {
-        $logs[] = $title;
-        $logs[] = sprintf(__('Post: %1$s - Enzyme: %3$s - Injection: {[%2$s]}'), $this->injection_post->ID,
+        $result = array();
+        $result[] = $title;
+        $result[] = sprintf(__('Post: %1$s - Enzyme: %3$s - Injection: {[%2$s]}'), $this->injection_post->ID,
                 $this->current_sequence, $this->current_enzyme);
-        $logs[] = $output;
-        return $logs;
+        $result[] = $output;
+        return $result;
     }
 
+    /**
+     * Send the last eval error to the browser.
+     */
     public
     function echo_last_eval_error()
     {
@@ -650,17 +662,11 @@ class Enzymes3
         ) {
             list($result, $error, $output) = $this->safe_eval($code, $arguments);
             if ( $error ) {
-                $this->console_log(__('ENZYMES ERROR'));
-                $this->console_log(sprintf(__('post: %1$s - enzyme: %3$s - injection: {[%2$s]}'),
-                        $this->injection_post->ID, $this->current_sequence, $this->current_enzyme));
-                $this->console_log($error);
+                $this->console_log($this->decorate(__('ENZYMES ERROR'), $error));
                 $result = null;
             }
             if ( $output ) {
-                $this->console_log(__('ENZYMES OUTPUT'));
-                $this->console_log(sprintf(__('post: %1$s - enzyme: %3$s - injection: {[%2$s]}'),
-                        $this->injection_post->ID, $this->current_sequence, $this->current_enzyme));
-                $this->console_log($output);
+                $this->console_log($this->decorate(__('ENZYMES OUTPUT'), $output));
             }
         } else {
             $result = null;
@@ -965,12 +971,12 @@ class Enzymes3
     }
 
     /**
-     * Detect the version of the injection post.
+     * Detect the engine version of the injection post.
      *
      * @return int
      */
     protected
-    function default_version()
+    function post_engine_version()
     {
         // The injection_post at this point of the execution can be null only in version 3 because
         // in version 2 it follows a different path, i.e. it would go straight into the Enzymes class
@@ -980,35 +986,33 @@ class Enzymes3
         }
         // By looking at these dates we can only assume a post default version, because the user
         // could have forced another default version or another injection version. --
-        $post_default = $this->injection_post->post_date_gmt <= EnzymesPlugin::activated_on()
+        $result = $this->injection_post->post_date_gmt <= EnzymesPlugin::activated_on()
                 ? 2
                 : 3;
         // Allow a user to specify a different default version by using an "enzymes" custom field
         // set to 2 or 3. --
-        $user_default = get_post_meta($this->injection_post->ID, self::FORCE_DEFAULT_VERSION, true);
-        if (! in_array($user_default, array(null, 2, 3))) {
-            $user_default = null;
+        $forced_version = get_post_meta($this->injection_post->ID, self::FORCE_POST_VERSION, true);
+        if (in_array($forced_version, array(2, 3))) {
+            $result = $forced_version;
         }
 
-        $result = ! is_null($user_default) ? $user_default : $post_default;
         return $result;
     }
 
     /**
-     * Detect the version of an injection with a sequence.
-     * Remove the forced version from the sequence, if any.
+     * Detect the version of an injection, and remove the forced version from the sequence, if any.
      *
      * @param string $sequence
      *
      * @return int
      */
     protected
-    function sequence_version( &$sequence )
+    function injection_engine_version( &$sequence )
     {
         $forced_2_prefix = self::FORCE_INJECTION_VERSION_2 . '|';
         $forced_3_prefix = self::FORCE_INJECTION_VERSION_3 . '|';
 
-        $result = $this->default_version();
+        $result = $this->post_engine_version();
         switch (true) {
             case (0 === strpos($sequence, $forced_2_prefix)):
                 $sequence = substr($sequence, strlen($forced_2_prefix));
@@ -1036,7 +1040,7 @@ class Enzymes3
         $there_are_only_chained_enzymes = preg_match($this->e_sequence_valid, '|' . $sequence);
         if ( ! $there_are_only_chained_enzymes ) {
             $result = '{[' . $could_be_sequence . ']}';  // skip this injection AS IS
-        } elseif ( $this->sequence_version($sequence) == 2 ) {
+        } elseif ( $this->injection_engine_version($sequence) == 2 ) {
             $result = '{[' . $sequence . ']}';  // skip this injection
                                                 // after stripping out the forced version from $sequence, if any
         } else {
